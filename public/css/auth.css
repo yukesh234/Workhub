@@ -1,0 +1,101 @@
+*{
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%);
+    color: #ffffff;
+}
+
+.wrapper {
+    background: rgba(15, 32, 39, 0.85);
+    backdrop-filter: blur(15px);
+    border: 1px solid rgba(125, 249, 255, 0.2);
+    border-radius: 16px;
+    padding: 40px;
+    width: 100%;
+    max-width: 450px;
+    box-shadow: 0 20px 60px rgba(44, 83, 100, 0.4);
+}
+main {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    padding: 20px;
+}
+.formbody form {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+input[type="email"],
+input[type="password"] {
+    width: 100%;
+    padding: 14px 16px;
+    background: rgba(30, 30, 30, 0.6);
+    border: 1px solid rgba(125, 249, 255, 0.2);
+    border-radius: 8px;
+    color: #e0e0e0;
+    font-size: 0.95rem;
+    transition: all 0.3s ease;
+    outline: none;
+}
+input[type="email"]:focus,
+input[type="password"]:focus {
+    border-color: rgba(125, 249, 255, 0.5);
+    background: rgba(30, 30, 30, 0.8);
+    box-shadow: 0 0 0 3px rgba(125, 249, 255, 0.1);
+}
+
+button[type="submit"] {
+    width: 100%;
+    padding: 14px;
+    background: linear-gradient(135deg, #17303b 0%, #528799 50%, #41758bce 100%);
+    border: none;
+    border-radius: 8px;
+    color: #0a0a0a;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    margin-top: 8px;
+}
+
+button[type="submit"]:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(125, 249, 255, 0.3);
+}
+
+button[type="submit"]:active {
+    transform: translateY(0);
+}
+
+.formbody p {
+    text-align: center;
+    margin-top: 24px;
+    font-size: 0.9rem;
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.formbody p a {
+    color: #7df9ff;
+    text-decoration: none;
+    margin-left: 6px;
+    font-weight: 500;
+    transition: color 0.3s ease;
+}
+
+.formbody p a:hover {
+    color: #b0f9ff;
+    text-decoration: underline;
+}
+.title h1 {
+    font-size: 2rem;
+    font-weight: 800;
+    margin-bottom: 32px;
+    text-align: center;
+    background-clip: text;
+}

@@ -1,0 +1,68 @@
+# Composer
+/vendor/
+composer.phar
+composer.lock
+
+# Environment files
+.env
+.env.local
+.env.*.local
+.env.backup
+.env.production
+
+# IDE and Editor files
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+*~
+.DS_Store
+
+# OS files
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+/logs/
+/log/
+
+# Cache and temporary files
+/cache/
+/tmp/
+/temp/
+*.cache
+
+# Session files
+/sessions/
+/session/
+
+# Upload directories (customize based on your project)
+/uploads/
+/public/uploads/
+
+# Config files with sensitive data
+config/database.php
+config/credentials.php
+
+# Build and package files
+*.zip
+*.tar
+*.tar.gz
+*.rar
+
+# Test coverage
+/coverage/
+.phpunit.result.cache
+/build/
+
+# Node modules (if you use any frontend build tools)
+/node_modules/
+package-lock.json
+yarn.lock
+
+# PHP specific
+/.php-cs-fixer.cache
+.phpunit.cache
