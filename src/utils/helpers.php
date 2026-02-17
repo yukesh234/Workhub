@@ -32,13 +32,13 @@ function sendMail(string $to, string $subject, string $message): bool {
         $mail->isSMTP();
         $mail->Host = 'smtp.gmail.com';
         $mail->SMTPAuth = true;
-        $mail->Username = Config::get('MAIL_USERNAME');       // ⚠️ CHANGE THIS
-        $mail->Password = Config::get('MAIL_PASS');   // ⚠️ CHANGE THIS
+        $mail->Username = Config::get('MAIL_USERNAME');       
+        $mail->Password = Config::get('MAIL_PASS');   
         $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
         $mail->Port = 587;
 
         // Email Settings
-        $mail->setFrom(Config::get('MAIL_USERNAME'), 'WorkHub');  // ⚠️ CHANGE THIS
+        $mail->setFrom(Config::get('MAIL_USERNAME'), 'WorkHub');  
         $mail->addAddress($to);
         $mail->isHTML(true);
         $mail->Subject = $subject;
