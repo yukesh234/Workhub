@@ -3,12 +3,21 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
+require_once __DIR__ . '/../utils/response.php';
 require_once __DIR__ . '/../Models/AdminModel.php';
 require_once __DIR__ . '/../Middleware/AuthMiddleware.php';
 require_once __DIR__ . '/../Utils/Email.php';
 require_once __DIR__ . '/../Utils/helpers.php';
-
+require_once __DIR__ . '/../Models/OrganizationModel.php';
+require_once __DIR__ . '/../Service/CloudinaryService.php';
 class AdminController {
+    private CloudinaryService $cloudinary;
+    private OrganizationModel $organization;
+    public function __construct()
+    {
+       $this->cloudinary = new CloudinaryService();
+       $this->organization = new OrganizationModel();
+    }
     private function getBaseUrl() {
         $basePath = rtrim(dirname($_SERVER['SCRIPT_NAME']), '/');
         return $basePath;
@@ -162,6 +171,7 @@ class AdminController {
             $admin = new Admin();
             $result = $admin->handleLogin($_POST['email'] ?? '', $_POST['password'] ?? '');
             
+            
             if ($result['success']) {
                 $_SESSION['admin_id'] = $result['admin']['id'];
                 $_SESSION['admin_email'] = $result['admin']['email'];
@@ -189,4 +199,61 @@ class AdminController {
             }
         }  
     }
+
+   public function createOrganization() {
+    try {
+        $admin_id = AuthMiddleware::adminId();
+        
+        // 1. Validate required fields
+        $name = trim($_POST['name'] ?? '');
+        if (empty($name)) {
+            Response(400, false, "Organization name is required");
+        }
+
+        // 2. Handle image upload (OPTIONAL)
+        $imageUrl = null;
+        $publicId = null;
+
+        if (isset($_FILES['image']) && $_FILES['image']['error'] === UPLOAD_ERR_OK) {
+            
+            // Validate file type
+            $allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+            $fileType = $_FILES['image']['type'];
+
+            if (!in_array($fileType, $allowedTypes)) {
+                Response(400, false, "Invalid image type. Only JPG, PNG, and WEBP allowed");
+            }
+
+            // Upload to Cloudinary
+            $uploaded = $this->cloudinary->uploadImage($_FILES['image']['tmp_name'], 'workhub/organizations');
+            $imageUrl = $uploaded['url'];
+            $publicId = $uploaded['public_id'];
+        }
+
+        // 3. Save to database (OUTSIDE the image upload block!)
+        $slogan = trim($_POST['slogan'] ?? '');
+        $result = $this->organization->createOrganization(
+            $admin_id, 
+            $name, 
+            $slogan, 
+            $imageUrl,
+            $publicId  // ← Add this
+        );
+
+        if (!$result['success']) {
+            // If DB fails and we uploaded an image, clean it up
+            if ($publicId) {
+                $this->cloudinary->deleteImage($publicId);
+            }
+            Response(500, false, $result['message']);
+        }
+
+        Response(201, true, $result['message'], [
+            'organization_id' => $result['organization_id']
+        ]);
+
+    } catch (\Exception $e) {
+        Response(500, false, $e->getMessage());
+    }
+}
 }

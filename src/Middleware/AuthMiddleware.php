@@ -22,4 +22,12 @@ class AuthMiddleware {
         }
         return true;
     }
+
+    public static function adminId(): int
+    {
+        if (!isset($_SESSION['admin_id'])) {
+            throw new Exception("unauthorized", 401);
+        }
+        return $_SESSION['admin_id'];
+    }
 }
