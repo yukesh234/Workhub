@@ -29,7 +29,7 @@ class OrganizationModel{
             name VARCHAR(255) NOT NULL UNIQUE,
             slogan VARCHAR(255),
             organization_logo VARCHAR(255),
-            logo_public_id VARCHAR(255),  -- ← Add this for deletion
+            logo_public_id VARCHAR(255),  
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             FOREIGN KEY (admin_id) REFERENCES admin(id) ON DELETE CASCADE
@@ -70,8 +70,16 @@ class OrganizationModel{
     }
     }
 
-    public function checkOrganization(){
-        
+    public function getOrganizationId(int $admin_id): ?int
+    {
+        $stmt = $this->db->prepare(
+            "SELECT organization_id FROM Organization WHERE admin_id = ?"
+        );
+        $stmt->execute([$admin_id]);
+
+        $id = $stmt->fetchColumn();
+
+        return $id !== false ? (int)$id : null;
     }
 
 

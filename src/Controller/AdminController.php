@@ -9,14 +9,17 @@ require_once __DIR__ . '/../Middleware/AuthMiddleware.php';
 require_once __DIR__ . '/../Utils/Email.php';
 require_once __DIR__ . '/../Utils/helpers.php';
 require_once __DIR__ . '/../Models/OrganizationModel.php';
+require_once __DIR__ . '/../Models/UserModel.php';
 require_once __DIR__ . '/../Service/CloudinaryService.php';
 class AdminController {
     private CloudinaryService $cloudinary;
     private OrganizationModel $organization;
+    private UserModel $user;
     public function __construct()
     {
        $this->cloudinary = new CloudinaryService();
        $this->organization = new OrganizationModel();
+       $this->user = new UserModel();
     }
     private function getBaseUrl() {
         $basePath = rtrim(dirname($_SERVER['SCRIPT_NAME']), '/');
@@ -40,7 +43,6 @@ class AdminController {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $email = trim($_POST['email'] ?? '');
             $password = $_POST['password'] ?? '';
-
             $admin = new Admin();
             $result = $admin->createAdmin($email, $password);
 
@@ -170,7 +172,7 @@ class AdminController {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $admin = new Admin();
             $result = $admin->handleLogin($_POST['email'] ?? '', $_POST['password'] ?? '');
-            
+
             
             if ($result['success']) {
                 $_SESSION['admin_id'] = $result['admin']['id'];
@@ -230,14 +232,14 @@ class AdminController {
             $publicId = $uploaded['public_id'];
         }
 
-        // 3. Save to database (OUTSIDE the image upload block!)
+        // 3. Save to database 
         $slogan = trim($_POST['slogan'] ?? '');
         $result = $this->organization->createOrganization(
             $admin_id, 
             $name, 
             $slogan, 
             $imageUrl,
-            $publicId  // ← Add this
+            $publicId  
         );
 
         if (!$result['success']) {
@@ -252,8 +254,76 @@ class AdminController {
             'organization_id' => $result['organization_id']
         ]);
 
-    } catch (\Exception $e) {
-        Response(500, false, $e->getMessage());
-    }
+        } catch (\Exception $e) {
+            Response(500, false, $e->getMessage());
+        }
 }
+
+    public function createUser() {
+        try {
+            if (!AuthMiddleware::isLoggedIn()) {
+                Response(401, false, "Unauthorized");
+            }
+
+            $admin_id = AuthMiddleware::adminId();
+            $organization_id = AuthMiddleware::organization($this->organization, $admin_id);
+
+            // Validate required fields
+            $name = trim($_POST['name'] ?? '');
+            $password = trim($_POST['password'] ?? '');
+            $role = trim($_POST['role'] ?? '');
+
+            if (empty($name) || empty($password) || empty($role)) {
+                Response(400, false, "All fields are required");  // ← Fixed typo
+            }
+
+            // Validate role
+            if (!in_array($role, ['manager', 'member'])) {
+                Response(400, false, "Invalid role. Must be 'manager' or 'member'");
+            }
+
+            // Handle image upload
+            $imageUrl = null;
+            $publicId = null;
+
+            if (isset($_FILES['image']) && $_FILES['image']['error'] === UPLOAD_ERR_OK) {
+                $allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+                $fileType = $_FILES['image']['type'];
+
+                if (!in_array($fileType, $allowedTypes)) {
+                    Response(400, false, "Invalid image type. Only JPG, PNG, and WEBP allowed");
+                }
+
+                // Upload to Cloudinary
+                $uploaded = $this->cloudinary->uploadImage($_FILES['image']['tmp_name'], 'workhub/users');  // ← Fixed method name
+                $imageUrl = $uploaded['url'];
+                $publicId = $uploaded['public_id'];
+            }
+
+            // Save to database
+            $result = $this->user->createUser(
+                $name,
+                $password,
+                $imageUrl,
+                $organization_id,
+                $publicId,
+                $role
+            );
+
+            if (!$result['success']) {
+                // Cleanup uploaded image if DB fails
+                if ($publicId) {
+                    $this->cloudinary->deleteImage($publicId);  // ← Fixed method name
+                }
+                Response(500, false, $result['message']);
+            }
+
+            Response(201, true, $result['message'], [
+                'user_id' => $result['user_id']
+            ]);
+
+        } catch (\Exception $e) {
+            Response(500, false, $e->getMessage());
+        }
+    }
 }
