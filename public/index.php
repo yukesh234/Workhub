@@ -78,6 +78,13 @@ switch ($requestUri) {
     case '/logout':
         $adminController->Logout();
         break;
+    
+    case '/api/organization':
+        $adminController->getOrganization();
+        break;
+    case '/organization/create':
+       $adminController->createOrganization();
+       break;
         
     default:
         http_response_code(404);

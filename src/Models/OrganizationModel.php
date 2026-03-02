@@ -82,5 +82,38 @@ class OrganizationModel{
         return $id !== false ? (int)$id : null;
     }
 
+  public function getOrganizationdetails(int $admin_id){
+    $stmt = $this->db->prepare(
+        'SELECT organization_id, name, slogan, organization_logo, created_at 
+         FROM Organization
+         WHERE admin_id = :admin_id'
+    );
 
+    $stmt->execute([
+        ':admin_id' => $admin_id
+    ]);
+
+    return $stmt->fetch(PDO::FETCH_ASSOC);
+}
+
+    public function editOrganizationlogo($logourl,$organization_id){
+        try{
+            $sql = "
+            Update Organization set organization_logo = :organization_logo 
+            where organization_id = :organization_id 
+            ";
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute([
+                ':organization_logo' => $logourl,
+                ':organization_id' => $organization_id
+            ]);
+            return [
+                "success" => true,
+                "message" => "successfully updated the logo"
+            ];
+        }catch(PDOException $e){
+            throw new Exception("Error changing organization logo", $e->getMessage());
+        }
+    }
+    
 }

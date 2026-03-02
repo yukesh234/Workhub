@@ -216,22 +216,20 @@ class AdminController {
         $imageUrl = null;
         $publicId = null;
 
-        if (isset($_FILES['image']) && $_FILES['image']['error'] === UPLOAD_ERR_OK) {
+      // ✅ Matches your form's input name
+        if (isset($_FILES['organization_logo']) && $_FILES['organization_logo']['error'] === UPLOAD_ERR_OK) {
             
-            // Validate file type
             $allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
-            $fileType = $_FILES['image']['type'];
+            $fileType = $_FILES['organization_logo']['type'];
 
             if (!in_array($fileType, $allowedTypes)) {
                 Response(400, false, "Invalid image type. Only JPG, PNG, and WEBP allowed");
             }
 
-            // Upload to Cloudinary
-            $uploaded = $this->cloudinary->uploadImage($_FILES['image']['tmp_name'], 'workhub/organizations');
+            $uploaded = $this->cloudinary->uploadImage($_FILES['organization_logo']['tmp_name'], 'workhub/organizations');
             $imageUrl = $uploaded['url'];
             $publicId = $uploaded['public_id'];
         }
-
         // 3. Save to database 
         $slogan = trim($_POST['slogan'] ?? '');
         $result = $this->organization->createOrganization(
@@ -251,7 +249,11 @@ class AdminController {
         }
 
         Response(201, true, $result['message'], [
-            'organization_id' => $result['organization_id']
+            'organization_id'    => $result['organization_id'],
+            'name'               => $name,
+            'slogan'             => $slogan,
+            'organization_logo'  => $imageUrl,   // null if no image uploaded
+            'created_at'         => date('Y-m-d H:i:s'),
         ]);
 
         } catch (\Exception $e) {
@@ -326,4 +328,18 @@ class AdminController {
             Response(500, false, $e->getMessage());
         }
     }
+
+    public function getOrganization(){
+        try{
+        if (!AuthMiddleware::isLoggedIn()) {
+                Response(401, false, "Unauthorized");
+            }
+            $admin_id = AuthMiddleware::adminId();
+            $result = $this->organization->getOrganizationdetails($admin_id);
+           $result = $this->organization->getOrganizationdetails($admin_id);
+            Response(200, true, "fetched successfully", $result ?: null);
+            }catch(\Exception $e){
+        Response(500,false,$e->getMessage());
+        }
+}
 }
