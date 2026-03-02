@@ -115,5 +115,23 @@ class OrganizationModel{
             throw new Exception("Error changing organization logo", $e->getMessage());
         }
     }
+
+    public function deleteOrganization($organization_id){
+        try{
+            $stmt = $this->db->prepare("
+            delete from Organization where 
+            organization_id = :organization_id
+            ");
+            $stmt->execute([
+                ':organization_id' => $organization_id
+            ]);
+            return [
+                'success' => true,
+                'message' => "deleted the organization successfully"
+            ];
+        }catch(PDOException $e){
+            throw new Exception("error deleting oreganization:", $e->getMessage() );
+        }
+    }
     
 }

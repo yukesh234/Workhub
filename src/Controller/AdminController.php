@@ -178,7 +178,7 @@ class AdminController {
                 $_SESSION['admin_id'] = $result['admin']['id'];
                 $_SESSION['admin_email'] = $result['admin']['email'];
                 $_SESSION['is_verified'] = $result['admin']['isverified'];
-                $cookie_name = "AdminEmail";;
+                $cookie_name = "AdminEmail";
                 $cookie_value = $result['admin']['email'];
                 setcookie($cookie_name, $cookie_value, time() + (86400 * 30), "/"); 
                 //seeting the id and is verified as well

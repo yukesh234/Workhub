@@ -16,18 +16,18 @@ class UserModel{
 
      private function createUserTable() {
             $sql = "CREATE TABLE IF NOT EXISTS User (
-                user_id INT AUTO_INCREMENT PRIMARY KEY,
-                name VARCHAR(255) NOT NULL,
-                password VARCHAR(255) NOT NULL,
-                userProfile VARCHAR(255),
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                organization_id INT NOT NULL,
-                profile_public_id VARCHAR(255),
-                role ENUM('manager', 'member') NOT NULL, 
+                user_id            INT AUTO_INCREMENT PRIMARY KEY,
+                name               VARCHAR(255) NOT NULL,
+                email              VARCHAR(255) NOT NULL UNIQUE,   -- ← add this
+                password           VARCHAR(255) NOT NULL,
+                userProfile        VARCHAR(255),
+                profile_public_id  VARCHAR(255),
+                role               ENUM('manager', 'member') NOT NULL,
+                organization_id    INT NOT NULL,
+                created_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 FOREIGN KEY (organization_id) REFERENCES Organization(organization_id) ON DELETE CASCADE
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
-            
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;";
             try {
                 $this->db->exec($sql);
             } catch (PDOException $e) {
@@ -35,7 +35,7 @@ class UserModel{
             }
      }
 
-        public function createUser($name, $password, $userprofile = null, $organization_id, $profile_public_id = null, $role) {
+    public function createUser($name, $password, $userprofile = null, $organization_id, $profile_public_id = null, $role) {
             try {
                 $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
                 
@@ -67,7 +67,10 @@ class UserModel{
             }
      }
 
-     public function updatePassword($newPassword, $user_id){
+    
+    
+    
+    public function updatePassword($newPassword, $user_id){
         try{
             $hashedPassword = password_hash($newPassword, PASSWORD_DEFAULT);
             $stmt = $this->db->prepare('
@@ -108,4 +111,48 @@ class UserModel{
             ];
         }
     }
+    public function getUserbyemail ($email){
+        $stmt = $this->db->prepare("select user_id, name, email,password,userProfile,role,organization_id
+        where email = ?
+        ");
+        $stmt->execute([$email]);
+        return $stmt->fetch(PDO::FETCH_ASSOC);
+    }
+
+   public function handle_member_login($email, $password)
+{
+    if (empty($email) || empty($password)) {
+        return [
+            'success' => false,
+            'message' => 'Email and password are required'
+        ];
+    }
+
+    $member = $this->getUserbyemail($email);
+
+    if (!$member) {
+        return [
+            'success' => false,
+            'message' => 'Invalid credentials'
+        ];
+    }
+
+    if (!password_verify($password, $member['password'])) {
+        return [
+            'success' => false,
+            'message' => 'Invalid credentials'
+        ];
+    }
+
+    return [
+        'success' => true,
+        'message' => 'Logged in successfully',
+        'data' => [
+            'user_id' => $member['id'],
+            'role' => $member['role'],
+            'organization_id' => $member['organization_id']
+        ]
+    ];
+}
+
 }
