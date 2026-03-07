@@ -263,6 +263,7 @@ $activePage = 'dashboard';
 </script>
 
 <!-- Dashboard JS -->
+<script src="<?= $basePath ?>/js/app.js"></script>
 <script src="<?= $basePath ?>/js/dashboard.js"></script>
 
 </body>

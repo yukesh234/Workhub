@@ -1,63 +1,75 @@
-// ─── Config ────────────────────────────────────────────────────────────────
-const BASE       = window.WH_BASE ?? '';
-const API_ORG    = BASE + '/api/organization';    // GET  → { success: bool, data: org|null }
-const API_CREATE = BASE + '/organization/create'; // POST → { success: bool, data: org } | { success: false, message: string }
+/**
+ * public/js/dashboard.js
+ * Drives the Dashboard page. Requires app.js loaded first.
+ */
 
-// ─── Date ──────────────────────────────────────────────────────────────────
-document.getElementById('topbarDate').textContent =
-    new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
-
-// ─── State management ──────────────────────────────────────────────────────
+// ── State helpers ────────────────────────────────────────────────────
 function showState(name) {
-    document.querySelectorAll('.state').forEach(el => el.classList.remove('active'));
+    ['loading', 'no-org', 'error'].forEach(s => {
+        const el = document.getElementById(`main-${s}`);
+        if (el) el.classList.remove('active');
+    });
+
     const hasOrg = document.getElementById('main-has-org');
-    hasOrg.style.display = 'none';
-    hasOrg.classList.remove('active');
+    if (hasOrg) hasOrg.style.display = 'none';
 
     if (name === 'has-org') {
-        hasOrg.style.display = 'block';
-        hasOrg.classList.add('active');
+        if (hasOrg) hasOrg.style.display = 'block';
     } else {
-        const el = document.getElementById('main-' + name);
+        const el = document.getElementById(`main-${name}`);
         if (el) el.classList.add('active');
     }
 }
 
-// ─── Sidebar helpers ───────────────────────────────────────────────────────
-function setSidebarSkeleton() {
-    document.getElementById('sidebar-org').innerHTML = `
-        <div class="org-skeleton">
-            <div class="sk-line short"></div>
-            <div class="sk-line long"></div>
-            <div class="sk-line tiny"></div>
-        </div>`;
+// ── Render org into the dashboard content area ───────────────────────
+function renderDashboardOrg(org) {
+    // Welcome subtitle
+    const sub = document.getElementById('org-welcome-sub');
+    if (sub) sub.textContent = `Here's your overview for ${org.name}.`;
+
+    // Logo slot
+    const slot = document.getElementById('org-logo-slot');
+    if (slot) {
+        slot.innerHTML = org.organization_logo
+            ? `<img class="org-card-logo" src="${esc(org.organization_logo)}" alt="${esc(org.name)}">`
+            : `<div class="org-card-logo-fallback">${esc(org.name.charAt(0).toUpperCase())}</div>`;
+    }
+
+    const name = document.getElementById('org-card-name');
+    if (name) name.textContent = org.name;
+
+    const slogan = document.getElementById('org-card-slogan');
+    if (slogan) slogan.textContent = org.slogan || '';
+
+    const since = document.getElementById('org-meta-since');
+    if (since) since.textContent = formatDateShort(org.created_at);
+
+    // Unlock quick action buttons once org exists
+    ['qa-projects', 'qa-tasks', 'qa-members', 'qa-settings'].forEach(id => {
+        document.getElementById(id)?.classList.remove('disabled');
+    });
+
+    showState('has-org');
 }
 
-function setSidebarNoOrg() {
-    document.getElementById('sidebar-org').innerHTML = `
-        <div class="sidebar-no-org">
-            <p>No organization yet.<br>Create one to get started.</p>
-            <button class="btn-sidebar-create" onclick="openModal()">+ Create Organization</button>
-        </div>`;
-}
-
-// ─── Fetch org on load ─────────────────────────────────────────────────────
+// ── Fetch org on load ────────────────────────────────────────────────
 async function fetchOrg() {
     showState('loading');
     setSidebarSkeleton();
 
     try {
-        const res  = await fetch(API_ORG, { credentials: 'same-origin' });
-        if (!res.ok) throw new Error('Server responded with ' + res.status);
+        const res  = await fetch(BASE + '/api/organization', { credentials: 'same-origin' });
+        if (!res.ok) throw new Error('Server error ' + res.status);
         const json = await res.json();
 
         if (json.success && json.data) {
-            renderOrg(json.data);
+            setSidebarOrg(json.data);
+            renderDashboardOrg(json.data);
         } else {
-            renderNoOrg();
+            setSidebarNoOrg();
+            showState('no-org');
         }
     } catch (err) {
-        console.error(err);
         document.getElementById('error-msg').textContent =
             err.message || 'Failed to connect to the server.';
         showState('error');
@@ -65,75 +77,8 @@ async function fetchOrg() {
     }
 }
 
-// ─── Render: has org ───────────────────────────────────────────────────────
-function renderOrg(org) {
-    // Sidebar org block
-    const logoHtml = org.organization_logo
-        ? `<img class="org-logo-thumb" src="${esc(org.organization_logo)}" alt="${esc(org.name)}">`
-        : `<div class="org-logo-fallback">${esc(org.name.charAt(0).toUpperCase())}</div>`;
-
-    document.getElementById('sidebar-org').innerHTML = `
-        <div class="org-block">
-            ${logoHtml}
-            <div class="org-text">
-                <div class="org-label">Organization</div>
-                <div class="org-name">${esc(org.name)}</div>
-                ${org.slogan ? `<div class="org-slogan">${esc(org.slogan)}</div>` : ''}
-            </div>
-        </div>`;
-
-    // Enable all nav items
-    ['nav-projects', 'nav-tasks', 'nav-members', 'nav-activity', 'nav-settings']
-        .forEach(id => document.getElementById(id)?.classList.remove('disabled'));
-
-    // Welcome subtitle
-    document.getElementById('org-welcome-sub').textContent = `Here's your overview for ${org.name}.`;
-
-    // Org logo slot
-    const slot = document.getElementById('org-logo-slot');
-    slot.innerHTML = org.organization_logo
-        ? `<img class="org-card-logo" src="${esc(org.organization_logo)}" alt="${esc(org.name)}">`
-        : `<div class="org-card-logo-fallback">${esc(org.name.charAt(0).toUpperCase())}</div>`;
-
-    // Card info
-    document.getElementById('org-card-name').textContent   = org.name;
-    document.getElementById('org-card-slogan').textContent = org.slogan ?? '';
-
-    document.getElementById('org-meta-since').textContent = org.created_at
-        ? new Date(org.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
-        : '—';
-
-    showState('has-org');
-}
-
-// ─── Render: no org ────────────────────────────────────────────────────────
-function renderNoOrg() {
-    setSidebarNoOrg();
-    showState('no-org');
-}
-
-// ─── Modal ─────────────────────────────────────────────────────────────────
-function openModal()  { document.getElementById('modalBackdrop').classList.add('open'); }
-function closeModal() { document.getElementById('modalBackdrop').classList.remove('open'); }
-function closeModalOutside(e) { if (e.target.id === 'modalBackdrop') closeModal(); }
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
-
-// ─── Logo preview ──────────────────────────────────────────────────────────
-function previewLogo(e) {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = ev => {
-        const preview = document.getElementById('upload-preview');
-        preview.src = ev.target.result;
-        preview.style.display = 'block';
-        document.getElementById('upload-icon').style.display = 'none';
-    };
-    reader.readAsDataURL(file);
-}
-
-// ─── Form submit ───────────────────────────────────────────────────────────
-document.getElementById('create-org-form').addEventListener('submit', async function (e) {
+// ── Create org form ──────────────────────────────────────────────────
+document.getElementById('create-org-form')?.addEventListener('submit', async function (e) {
     e.preventDefault();
 
     const btn   = document.getElementById('submit-btn');
@@ -142,7 +87,7 @@ document.getElementById('create-org-form').addEventListener('submit', async func
     btn.classList.add('loading');
 
     try {
-        const res  = await fetch(API_CREATE, {
+        const res  = await fetch(BASE + '/organization/create', {
             method: 'POST',
             body: new FormData(this),
             credentials: 'same-origin',
@@ -150,11 +95,18 @@ document.getElementById('create-org-form').addEventListener('submit', async func
         const json = await res.json();
 
         if (json.success && json.data) {
-            closeModal();
+            closeModal('modal-create-org');
             this.reset();
-            document.getElementById('upload-preview').style.display = 'none';
-            document.getElementById('upload-icon').style.display    = 'block';
-            renderOrg(json.data);
+
+            // Reset logo preview
+            const preview = document.getElementById('upload-preview');
+            const icon    = document.getElementById('upload-icon-wrap');
+            if (preview) { preview.src = ''; preview.style.display = 'none'; }
+            if (icon)    icon.style.display = 'block';
+
+            setSidebarOrg(json.data);
+            renderDashboardOrg(json.data);
+            showToast('Organization created successfully!');
         } else {
             throw new Error(json.message || 'Failed to create organization.');
         }
@@ -166,20 +118,5 @@ document.getElementById('create-org-form').addEventListener('submit', async func
     }
 });
 
-// ─── Logout ────────────────────────────────────────────────────────────────
-function handleLogout() {
-    if (confirm('Are you sure you want to logout?')) {
-        window.location.href = BASE + '/logout';
-    }
-}
-
-// ─── XSS helper ────────────────────────────────────────────────────────────
-function esc(str) {
-    return String(str)
-        .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;').replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
-}
-
-// ─── Boot ──────────────────────────────────────────────────────────────────
+// ── Boot ─────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', fetchOrg);

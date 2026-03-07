@@ -34,4 +34,9 @@ class AuthMiddleware {
     public static function organization(OrganizationModel $organization, $admin_id):int{
         return $organization->getOrganizationId($admin_id);
     }
+
+    public static function ismanager():bool{
+        return isset($_SESSION['role']) && $_SESSION['role'] === 'member' ? true: false;
+    }
+ 
 }

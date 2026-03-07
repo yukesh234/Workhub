@@ -2,23 +2,25 @@
 
 require_once __DIR__ . '/../Models/Database.php';
 
-class ProjectModel{
+class ProjectModel {
+
     private PDO $db;
-    private static bool $tablechecked = false;
+    private static bool $tableChecked = false;
 
     public function __construct()
     {
         $this->db = Database::getInstance()->getConnection();
-        
-         if (!self::$tablechecked) {
+
+        if (!self::$tableChecked) {
             $this->createTable();
-            self::$tablechecked = true;
+            self::$tableChecked = true;
         }
     }
 
-    private function createTable(){
+    private function createTable(): void
+    {
         $sql = "
-        CREATE TABLE if not exists project (
+        CREATE TABLE IF NOT EXISTS project (
             project_id INT AUTO_INCREMENT PRIMARY KEY,
             organization_id INT NOT NULL,
             name VARCHAR(255) NOT NULL,
@@ -26,108 +28,125 @@ class ProjectModel{
             status ENUM('active','completed','archived') DEFAULT 'active',
             created_by INT NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP 
-            ON UPDATE CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
-            FOREIGN KEY (organization_id) 
-            REFERENCES organization(organization_id)
-            ON DELETE CASCADE,
+            FOREIGN KEY (organization_id)
+                REFERENCES organization(organization_id)
+                ON DELETE CASCADE,
 
-            FOREIGN KEY (created_by) 
-            REFERENCES user(user_id)
-            ON DELETE CASCADE
-            )ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-        "; 
-        try{
-            $this->db->exec($sql);
-        }catch(PDOException $e){ 
-            throw new Exception("Error while creating project table", $e->getMessage());
-        }
-    }
-    public function createProject($organization_id, $name, $description, $status,$created_by){
-        try{
-            $stmt = $this->db->prepare("
-            insert into project (organization_id,name,description,status)
-            value(:organization_id,:name,:description,:status,:created_by)
-            ");
-            $stmt->execute([
-                ':organization_id' => $organization_id,
-                ':name' => $name,
-                ':description' => $description,
-                ':status' => $status,
-                ':created_by' => $created_by
-            ]);
+            FOREIGN KEY (created_by)
+                REFERENCES admin(id)
+                ON DELETE CASCADE
+        ) ENGINE=InnoDB
+        DEFAULT CHARSET=utf8mb4
+        COLLATE=utf8mb4_unicode_ci;
+        ";
 
-            return [
-                'success' => true,
-                'message' => 'User created successfully',
-                'project_id' => $this->db->lastInsertId()
-            ];
-        }catch(PDOException $e){
-            throw new Exception("Error creating project", $e->getMessage());
-        }
+        $this->db->exec($sql);
     }
 
-    public function updateProject($name,$description,$status, $project_id){
-        try{
-         $stmt = $this->db->prepare("
-          update project 
-          set name = :name,
-          description = :description,
-          status = :status
-          where project_id = :project_id
-         ");
-         $stmt->execute([
-            ':name' => $name,
-            ':description' => $description,
-            ':status' => $status,
-            ':project_id' => $project_id 
-         ]);
+    public function createProject(
+        int $organization_id,
+        string $name,
+        ?string $description,
+        int $created_by,
+        string $status = 'active'
+    ): array {
 
-         return[
-            'success' => true,
-            'message' => "successfully updated the project",
-            'project_id' => $project_id
-         ];
-        }catch(PDOException $e){
-            throw new Exception("Error updating project", $e->getMessage());
-        }
-    }
-
-    public function deleteProject($project_id){
-        try{
-            $stmt = $this->db->prepare("
-            delete from project where project_id = :project_id
-            ");
-            $stmt->execute([
-                ':project_id' => $project_id
-            ]);
-        return[
-            'success' =>true,
-            'message' => "project deleted successfully"
-        ];
-        }catch(PDOException $e){
-            throw new Exception("Error deleting the project", $e->getMessage());
-        }
-    }
-
-    public function getProjectbyid($project_id){
         $stmt = $this->db->prepare("
-          select project_id, organization_id, name,description,status,created_by
-          where project_id =? 
+            INSERT INTO project
+            (organization_id,name,description,status,created_by)
+            VALUES
+            (:organization_id,:name,:description,:status,:created_by)
         ");
+
+        $stmt->execute([
+            ':organization_id'=>$organization_id,
+            ':name'=>$name,
+            ':description'=>$description,
+            ':status'=>$status,
+            ':created_by'=>$created_by
+        ]);
+
+        return [
+            'success'=>true,
+            'message'=>'Project created successfully',
+            'project_id'=>$this->db->lastInsertId()
+        ];
+    }
+
+    public function updateProject(
+        int $project_id,
+        string $name,
+        ?string $description,
+        string $status
+    ): array {
+
+        $stmt = $this->db->prepare("
+            UPDATE project
+            SET name=:name,
+                description=:description,
+                status=:status
+            WHERE project_id=:project_id
+        ");
+
+        $stmt->execute([
+            ':project_id'=>$project_id,
+            ':name'=>$name,
+            ':description'=>$description,
+            ':status'=>$status
+        ]);
+
+        return [
+            'success'=>true,
+            'message'=>'Project updated successfully',
+            'project_id'=>$project_id
+        ];
+    }
+
+    public function deleteProject(int $project_id): array {
+
+        $stmt = $this->db->prepare("
+            DELETE FROM project
+            WHERE project_id=:project_id
+        ");
+
+        $stmt->execute([
+            ':project_id'=>$project_id
+        ]);
+
+        return [
+            'success'=>true,
+            'message'=>'Project deleted successfully'
+        ];
+    }
+
+    public function getProjectById(int $project_id): ?array {
+
+        $stmt=$this->db->prepare("
+            SELECT *
+            FROM project
+            WHERE project_id=?
+        ");
+
         $stmt->execute([$project_id]);
 
-        return $stmt->fetch(PDO::FETCH_ASSOC);
+        $result=$stmt->fetch(PDO::FETCH_ASSOC);
+
+        return $result ?: null;
     }
 
-    public function getProjectbyOrganization($organization_id){
-         $stmt = $this->db->prepare("
-          select project_id, organization_id, name,description,status,created_by
-          where organization_id =? 
+    public function getProjectsByOrganization(int $organization_id): array {
+
+        $stmt=$this->db->prepare("
+            SELECT *
+            FROM project
+            WHERE organization_id=?
+            ORDER BY created_at DESC
         ");
+
         $stmt->execute([$organization_id]);
 
-        return $stmt->fetch(PDO::FETCH_ASSOC);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 }

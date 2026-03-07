@@ -216,7 +216,7 @@ class AdminController {
         $imageUrl = null;
         $publicId = null;
 
-      // ✅ Matches your form's input name
+      //  Matches your form's input name
         if (isset($_FILES['organization_logo']) && $_FILES['organization_logo']['error'] === UPLOAD_ERR_OK) {
             
             $allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
@@ -336,7 +336,6 @@ class AdminController {
             }
             $admin_id = AuthMiddleware::adminId();
             $result = $this->organization->getOrganizationdetails($admin_id);
-           $result = $this->organization->getOrganizationdetails($admin_id);
             Response(200, true, "fetched successfully", $result ?: null);
             }catch(\Exception $e){
         Response(500,false,$e->getMessage());
