@@ -12,7 +12,7 @@ require_once __DIR__ . '/../src/Middleware/AuthMiddleware.php';
 require_once __DIR__ . '/../src/Controller/AdminController.php';
 require_once __DIR__ . '/../src/Controller/ProjectController.php';
 require_once __DIR__ . '/../src/Controller/ProjectMemberController.php';
-
+require_once __DIR__ . '/../src/Controller/MemberController.php';
 function getBaseUrl() {
     return rtrim(dirname($_SERVER['SCRIPT_NAME']), '/');
 }
@@ -33,6 +33,7 @@ if (empty($requestUri) || $requestUri[0] !== '/') {
 $adminController         = new AdminController();
 $projectController       = new ProjectController();
 $projectMemberController = new ProjectMemberController();
+$userController          = new MemberController();
 
 // ── Router ───────────────────────────────────────────────────────────
 switch ($requestUri) {
@@ -130,6 +131,11 @@ switch ($requestUri) {
         AuthMiddleware::checkAuth();
         $projectMemberController->changeRole();
         break;
+    case '/user/login':
+          $_SERVER['REQUEST_METHOD'] === 'POST'
+        ? $userController->processLogin()   // you'll build this
+        : $userController->showLoginForm();
+    break;
 
     // ── 404 ──
     default:
