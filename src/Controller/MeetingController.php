@@ -5,6 +5,7 @@ require_once __DIR__ . '/../Middleware/UserMIddleware.php';
 require_once __DIR__ . '/../Models/MeetingModel.php';
 require_once __DIR__ . '/../utils/response.php';
 require_once __DIR__ . '/../../config/jitsi.php';
+require_once __DIR__ . '/../utils/ActivityLogger.php'; 
 
 class MeetingController {
     private MeetingModel $meeting;
@@ -13,7 +14,6 @@ class MeetingController {
         $this->meeting = new MeetingModel();
     }
 
-    // ── POST /api/meetings/start  { project_id } ─────────────────────
     public function start(): void {
         header('Content-Type: application/json');
         $this->requireAnyAuth();
@@ -22,16 +22,17 @@ class MeetingController {
         $project_id = (int) ($data['project_id'] ?? 0);
         if (!$project_id) Response(400, false, 'project_id is required');
 
-        // Stable room name per project
         $room_name = 'workhub-project-' . $project_id . '-' . substr(md5(JAAS_APP_ID . $project_id), 0, 8);
-
         [$author_id, $author_type] = $this->getAuthor();
 
         $result = $this->meeting->startMeeting($project_id, $room_name, $author_id, $author_type);
         if (!$result['success']) Response(500, false, $result['message']);
 
-        // Starter is always moderator
-        $token = $this->generateJaaSToken($author_id, $author_type, $room_name, true);
+        $token  = $this->generateJaaSToken($author_id, $author_type, $room_name, true);
+        $org_id = $this->getOrgIdFromProject($project_id);
+
+        // ── Log ──────────────────────────────────────────────────────
+        ActivityLogger::log('meeting_started', 'meeting', $org_id, (int) $result['meeting_id'], "project #{$project_id}");
 
         Response(201, true, 'Meeting started', [
             'meeting_id' => $result['meeting_id'],
@@ -41,7 +42,6 @@ class MeetingController {
         ]);
     }
 
-    // ── GET /api/meetings/active?project_id=X ────────────────────────
     public function getActive(): void {
         header('Content-Type: application/json');
         $this->requireAnyAuth();
@@ -50,7 +50,6 @@ class MeetingController {
         if (!$project_id) Response(400, false, 'project_id is required');
 
         $meeting = $this->meeting->getActiveMeeting($project_id);
-
         if ($meeting) {
             $meeting['jaas_url'] = 'https://8x8.vc/' . JAAS_APP_ID . '/' . $meeting['room_name'];
         }
@@ -58,9 +57,6 @@ class MeetingController {
         Response(200, true, $meeting ? 'Active meeting found' : 'No active meeting', $meeting);
     }
 
-    // ── GET /api/meetings/token?project_id=X ─────────────────────────
-    // Any authenticated user calls this to get a JWT for the active room.
-    // Admin / manager → moderator=true, member → moderator=false.
     public function getToken(): void {
         header('Content-Type: application/json');
         $this->requireAnyAuth();
@@ -73,8 +69,7 @@ class MeetingController {
 
         [$author_id, $author_type] = $this->getAuthor();
         $isModerator = ($author_type === 'admin') || UserAuthMiddleware::isManager();
-
-        $token = $this->generateJaaSToken($author_id, $author_type, $meeting['room_name'], $isModerator);
+        $token       = $this->generateJaaSToken($author_id, $author_type, $meeting['room_name'], $isModerator);
 
         Response(200, true, 'Token generated', [
             'token'     => $token,
@@ -83,7 +78,6 @@ class MeetingController {
         ]);
     }
 
-    // ── POST /api/meetings/end  { meeting_id } ───────────────────────
     public function end(): void {
         header('Content-Type: application/json');
         $this->requireAnyAuth();
@@ -96,10 +90,14 @@ class MeetingController {
         $result = $this->meeting->endMeeting($meeting_id, $author_id);
         if (!$result['success']) Response(400, false, $result['message']);
 
+        // ── Log ──────────────────────────────────────────────────────
+        // Get project_id for org lookup from the meeting record
+        $org_id = $this->getOrgIdFromMeeting($meeting_id);
+        ActivityLogger::log('meeting_ended', 'meeting', $org_id, $meeting_id, "meeting #{$meeting_id}");
+
         Response(200, true, 'Meeting ended');
     }
 
-    // ── GET /api/meetings/history?project_id=X ───────────────────────
     public function history(): void {
         header('Content-Type: application/json');
         $this->requireAnyAuth();
@@ -110,13 +108,7 @@ class MeetingController {
         Response(200, true, 'History fetched', $this->meeting->getMeetingHistory($project_id));
     }
 
-    // ── RS256 JWT for JaaS — no external library ─────────────────────
-    private function generateJaaSToken(
-        int    $userId,
-        string $userType,
-        string $roomName,
-        bool   $isModerator
-    ): string {
+    private function generateJaaSToken(int $userId, string $userType, string $roomName, bool $isModerator): string {
         if ($userType === 'admin') {
             $name  = $_SESSION['admin_email'] ?? 'Admin';
             $email = $_SESSION['admin_email'] ?? 'admin@workhub.com';
@@ -127,44 +119,19 @@ class MeetingController {
             $uid   = 'user-' . $userId;
         }
 
-        $now = time();
-
-        $header = $this->b64url(json_encode([
-            'alg' => 'RS256',
-            'kid' => JAAS_APP_ID . '/' . JAAS_API_KEY_ID,
-            'typ' => 'JWT',
-        ]));
-
+        $now     = time();
+        $header  = $this->b64url(json_encode(['alg'=>'RS256','kid'=>JAAS_APP_ID.'/'.JAAS_API_KEY_ID,'typ'=>'JWT']));
         $payload = $this->b64url(json_encode([
-            'iss'     => 'chat',
-            'aud'     => 'jitsi',
-            'iat'     => $now,
-            'exp'     => $now + 7200,
-            'nbf'     => $now - 10,
-            'sub'     => JAAS_APP_ID,
-            'context' => [
-                'user' => [
-                    'id'        => $uid,
-                    'name'      => $name,
-                    'email'     => $email,
-                    'moderator' => $isModerator,
-                ],
-                'features' => [
-                    'lobby'         => false,   // ← disables lobby server-side
-                    'recording'     => $isModerator,
-                    'livestreaming' => false,
-                    'outbound-call' => false,
-                ],
-            ],
-            'room' => $roomName,
+            'iss'=>'chat','aud'=>'jitsi','iat'=>$now,'exp'=>$now+7200,'nbf'=>$now-10,'sub'=>JAAS_APP_ID,
+            'context'=>['user'=>['id'=>$uid,'name'=>$name,'email'=>$email,'moderator'=>$isModerator],
+                        'features'=>['lobby'=>false,'recording'=>$isModerator,'livestreaming'=>false,'outbound-call'=>false]],
+            'room'=>$roomName,
         ]));
 
         $signingInput = "$header.$payload";
-
         if (!openssl_sign($signingInput, $signature, JAAS_PRIVATE_KEY, OPENSSL_ALGO_SHA256)) {
             Response(500, false, 'JWT signing failed — check JAAS_PRIVATE_KEY in config/jaas.php');
         }
-
         return "$header.$payload." . $this->b64url($signature);
     }
 
@@ -179,9 +146,25 @@ class MeetingController {
     }
 
     private function getAuthor(): array {
-        if (AuthMiddleware::isLoggedIn()) {
-            return [AuthMiddleware::adminId(), 'admin'];
-        }
+        if (AuthMiddleware::isLoggedIn()) return [AuthMiddleware::adminId(), 'admin'];
         return [UserAuthMiddleware::userId(), 'user'];
+    }
+
+    private function getOrgIdFromProject(int $project_id): int {
+        try {
+            $db   = \Database::getInstance()->getConnection();
+            $stmt = $db->prepare("SELECT organization_id FROM project WHERE project_id=?");
+            $stmt->execute([$project_id]);
+            return (int) ($stmt->fetchColumn() ?: 0);
+        } catch (\Throwable $e) { return 0; }
+    }
+
+    private function getOrgIdFromMeeting(int $meeting_id): int {
+        try {
+            $db   = \Database::getInstance()->getConnection();
+            $stmt = $db->prepare("SELECT p.organization_id FROM meeting m JOIN project p ON p.project_id=m.project_id WHERE m.meeting_id=?");
+            $stmt->execute([$meeting_id]);
+            return (int) ($stmt->fetchColumn() ?: 0);
+        } catch (\Throwable $e) { return 0; }
     }
 }

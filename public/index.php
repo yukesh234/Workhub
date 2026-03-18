@@ -21,6 +21,10 @@ require_once __DIR__ . '/../src/Controller/UserController.php';
 require_once __DIR__ . '/../src/Controller/CommentController.php';
 require_once __DIR__ . '/../src/Controller/AttachmentController.php';
 require_once __DIR__ . '/../src/Controller/MeetingController.php';
+require_once __DIR__ . '/../src/Controller/AnalyticsController.php';
+require_once __DIR__ . '/../src/Models/ActivityLogModel.php';
+require_once __DIR__ . '/../src/Models/AnalyticsModel.php';
+require_once __DIR__ . '/../src/Utils/ActivityLogger.php';
 require_once __DIR__ . '/../src/Models/CommentModel.php';
 require_once __DIR__ . '/../src/Models/AttachmentModel.php';
 require_once __DIR__ . '/../src/Models/MeetingModel.php';
@@ -50,6 +54,7 @@ $userController          = new UserController();
 $commentController       = new CommentController();
 $attachmentController    = new AttachmentController();
 $meetingController       = new MeetingController();
+$analyticsController     = new AnalyticsController();
 
 // ── Router ────────────────────────────────────────────────────────────
 switch ($requestUri) {
@@ -160,6 +165,27 @@ switch ($requestUri) {
         break;
 
     // ── Meetings API ──────────────────────────────────────────────────
+    case '/analytics':
+        AuthMiddleware::checkAuth();
+        require_once __DIR__ . '/../views/Analytics.php';
+        break;
+
+    case '/api/analytics/admin':
+        AuthMiddleware::checkAuth();
+        $analyticsController->adminOverview();
+        break;
+
+    case '/api/analytics/activity':
+        AuthMiddleware::checkAuth();
+        $analyticsController->activityLog();
+        break;
+
+    case '/api/analytics/project':
+        UserAuthMiddleware::checkAuth();
+        UserAuthMiddleware::requirePasswordChanged();
+        $analyticsController->projectAnalytics();
+        break;
+
     case '/api/meetings/start':
         $meetingController->start();
         break;

@@ -6,29 +6,28 @@ if (session_status() === PHP_SESSION_NONE) {
 require_once __DIR__ . '/../utils/response.php';
 require_once __DIR__ . '/../Models/AdminModel.php';
 require_once __DIR__ . '/../Middleware/AuthMiddleware.php';
-require_once __DIR__ . '/../Utils/Email.php';
-require_once __DIR__ . '/../Utils/helpers.php';
+require_once __DIR__ . '/../utils/Email.php';
+require_once __DIR__ . '/../utils/helpers.php';
 require_once __DIR__ . '/../Models/OrganizationModel.php';
 require_once __DIR__ . '/../Models/UserModel.php';
 require_once __DIR__ . '/../Service/CloudinaryService.php';
+require_once __DIR__ . '/../utils/ActivityLogger.php'; // ← added
 
 class AdminController {
     private CloudinaryService $cloudinary;
     private OrganizationModel $organization;
     private UserModel $user;
 
-    public function __construct()
-    {
-       $this->cloudinary = new CloudinaryService();
+    public function __construct() {
+       $this->cloudinary   = new CloudinaryService();
        $this->organization = new OrganizationModel();
-       $this->user = new UserModel();
+       $this->user         = new UserModel();
     }
 
     private function getBaseUrl() {
         return rtrim(dirname($_SERVER['SCRIPT_NAME']), '/');
     }
 
-    // ── Generate a readable one-time password ────────────────────────
     private function generatePassword(int $length = 10): string {
         $chars = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789!@#';
         $pass  = '';
@@ -122,25 +121,20 @@ class AdminController {
     public function resendOTP() {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $email = trim($_POST['email'] ?? '');
-
             if (empty($email)) {
                 echo json_encode(['success' => false, 'message' => 'Email is required']);
                 return;
             }
-
             $admin         = new Admin();
             $existingAdmin = $admin->getAdminByEmail($email);
-
             if (!$existingAdmin) {
                 echo json_encode(['success' => false, 'message' => 'Email not found']);
                 return;
             }
-
             if ($existingAdmin['isverified']) {
                 echo json_encode(['success' => false, 'message' => 'Email already verified']);
                 return;
             }
-
             $otp = generateOTP(6);
             if ($admin->storeOTP($email, $otp)) {
                 $emailSent = Email::sendVerificationEmail($email, $otp);
@@ -185,9 +179,9 @@ class AdminController {
                 $_SESSION['is_verified'] = $result['admin']['isverified'];
                 $_SESSION['admin_Id']    = $result['admin']['id'];
 
-                setcookie("AdminEmail",    $result['admin']['email'],       time() + 86400 * 30, "/");
-                setcookie("AdminId",       $result['admin']['id'],          time() + 86400 * 30, "/");
-                setcookie("is_verified",   $result['admin']['isverified'],  time() + 86400 * 30, "/");
+                setcookie("AdminEmail",  $result['admin']['email'],      time() + 86400 * 30, "/");
+                setcookie("AdminId",     $result['admin']['id'],         time() + 86400 * 30, "/");
+                setcookie("is_verified", $result['admin']['isverified'], time() + 86400 * 30, "/");
 
                 header("Location: " . $this->getBaseUrl() . "/dashboard");
                 exit();
@@ -205,11 +199,8 @@ class AdminController {
     public function createOrganization() {
         try {
             $admin_id = AuthMiddleware::adminId();
-
             $name = trim($_POST['name'] ?? '');
-            if (empty($name)) {
-                Response(400, false, "Organization name is required");
-            }
+            if (empty($name)) Response(400, false, "Organization name is required");
 
             $imageUrl = null;
             $publicId = null;
@@ -232,6 +223,11 @@ class AdminController {
                 Response(500, false, $result['message']);
             }
 
+            // ── Log ──────────────────────────────────────────────────
+            ActivityLogger::log('created_organization', 'organization',
+                (int) $result['organization_id'],
+                (int) $result['organization_id'], $name);
+
             Response(201, true, $result['message'], [
                 'organization_id'   => $result['organization_id'],
                 'name'              => $name,
@@ -245,16 +241,11 @@ class AdminController {
         }
     }
 
-    // ── Create org member (admin-only) ───────────────────────────────
-    // POST multipart: name, email, role, image (optional)
-    // Password is auto-generated and returned ONCE — admin shares it.
     public function createUser() {
         try {
-            if (!AuthMiddleware::isLoggedIn()) {
-                Response(401, false, "Unauthorized");
-            }
+            if (!AuthMiddleware::isLoggedIn()) Response(401, false, "Unauthorized");
 
-            $admin_id       = AuthMiddleware::adminId();
+            $admin_id        = AuthMiddleware::adminId();
             $organization_id = AuthMiddleware::organization($this->organization, $admin_id);
 
             $name  = trim($_POST['name']  ?? '');
@@ -264,19 +255,14 @@ class AdminController {
             if (empty($name) || empty($email) || empty($role)) {
                 Response(400, false, "Name, email, and role are required");
             }
-
             if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
                 Response(400, false, "Invalid email format");
             }
-
             if (!in_array($role, ['manager', 'member'])) {
                 Response(400, false, "Invalid role. Must be 'manager' or 'member'");
             }
 
-            // Auto-generate a one-time password
             $plainPassword = $this->generatePassword(10);
-
-            // Optional profile image
             $imageUrl = null;
             $publicId = null;
 
@@ -290,22 +276,18 @@ class AdminController {
                 $publicId = $uploaded['public_id'];
             }
 
-            $result = $this->user->createUser(
-                $name,
-                $email,
-                $plainPassword,
-                $organization_id,
-                $role,
-                $imageUrl,
-                $publicId
-            );
+            $result = $this->user->createUser($name, $email, $plainPassword, $organization_id, $role, $imageUrl, $publicId);
 
             if (!$result['success']) {
                 if ($publicId) $this->cloudinary->deleteImage($publicId);
                 Response(400, false, $result['message']);
             }
 
-            // Return generated password — only time it's ever sent in plaintext
+            // ── Log ──────────────────────────────────────────────────
+            ActivityLogger::log('created_member', 'member',
+                (int) $organization_id,
+                (int) $result['user_id'], $name);
+
             Response(201, true, "Member created successfully", [
                 'user_id'            => $result['user_id'],
                 'name'               => $name,
@@ -320,47 +302,41 @@ class AdminController {
         }
     }
 
-    public function removeMember(){
-        try{
-        if (!AuthMiddleware::isLoggedIn()) {
-            Response(401, false, "Unauthorized");
-        }
+    public function removeMember() {
+        try {
+            if (!AuthMiddleware::isLoggedIn()) Response(401, false, "Unauthorized");
 
-        header('Content-Type: application/json');
+            header('Content-Type: application/json');
 
-        $data = json_decode(file_get_contents('php://input'), true);
+            $admin_id        = AuthMiddleware::adminId();
+            $organization_id = (int) AuthMiddleware::organization($this->organization, $admin_id);
 
-        if(!isset($data['user_id'])){
-            Response(400,false,"user_id is required");
-        }
-        $user = $this->user->getUserById($data['user_id']);
-        $result = $this->user->deleteUser($data['user_id']);
-        if(!$result['success']){
-            Response(400, false, $result['message']);
-        }
-        //deleting the image from the cloudinary
-      // Only delete from Cloudinary if the user had a profile image
-        $publicId = $user['profile_public_id'] ?? null;
-        if ($publicId) {
-            $this->cloudinary->deleteImage($publicId);
-        }
+            $data = json_decode(file_get_contents('php://input'), true);
+            if (!isset($data['user_id'])) Response(400, false, "user_id is required");
 
-        Response(200, true, 'Successfully deleted the user');
-        if($img['result'] !== 'ok' )
-            {
-                Response(500,false,"error deleting the user");
-            }
-        Response(200,true,'successfully deleted the user');
-        }catch(\Exception $e){
-            Response(500,false,$e->getMessage());
+            $user   = $this->user->getUserById($data['user_id']);
+            $result = $this->user->deleteUser($data['user_id']);
+
+            if (!$result['success']) Response(400, false, $result['message']);
+
+            // ── Log before Cloudinary deletion ───────────────────────
+            ActivityLogger::log('removed_member', 'member',
+                $organization_id,
+                (int) $data['user_id'], $user['name'] ?? 'Unknown');
+
+            $publicId = $user['profile_public_id'] ?? null;
+            if ($publicId) $this->cloudinary->deleteImage($publicId);
+
+            Response(200, true, 'Successfully deleted the user');
+
+        } catch (\Exception $e) {
+            Response(500, false, $e->getMessage());
         }
     }
 
     public function getOrganization() {
         try {
-            if (!AuthMiddleware::isLoggedIn()) {
-                Response(401, false, "Unauthorized");
-            }
+            if (!AuthMiddleware::isLoggedIn()) Response(401, false, "Unauthorized");
             $admin_id = AuthMiddleware::adminId();
             $result   = $this->organization->getOrganizationdetails($admin_id);
             Response(200, true, "fetched successfully", $result ?: null);
@@ -371,9 +347,7 @@ class AdminController {
 
     public function getOrganizationMember() {
         try {
-            if (!AuthMiddleware::isLoggedIn()) {
-                Response(401, false, "Unauthorized");
-            }
+            if (!AuthMiddleware::isLoggedIn()) Response(401, false, "Unauthorized");
             $admin_id        = AuthMiddleware::adminId();
             $organization_id = AuthMiddleware::organization($this->organization, $admin_id);
             $result          = $this->user->getOrganizationMember($organization_id);
