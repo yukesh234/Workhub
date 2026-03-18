@@ -136,27 +136,26 @@ class ProjectController {
         Response(200, true, "Projects fetched successfully", $projects);
     }
 
+   
     public function getProjectByID() {
         if (!AuthMiddleware::isLoggedIn()) {
-            Response(401, false, "Unauthorized");
+                Response(401, false, "Unauthorized");
+            }
+
+            header('Content-Type: application/json');
+
+            $project_id = isset($_GET['project_id']) ? (int) $_GET['project_id'] : 0;
+
+            if (!$project_id) {
+                Response(400, false, "project_id is required");
+            }
+
+            $result = $this->project->getProjectById($project_id);
+
+            if (!$result) {
+                Response(404, false, "Project not found");
+            }
+
+            Response(200, true, "Project fetched", $result);
         }
-
-        header('Content-Type: application/json');
-
-      
-        $data = json_decode(file_get_contents('php://input'), true);
-
-        if (!isset($data['project_id'])) {
-            Response(400, false, "project_id is required");
-        }
-
-        $result = $this->project->getProjectById((int) $data['project_id']);
-
-        // ✅ Fixed: actually send the response
-        if (!$result) {
-            Response(404, false, "Project not found");
-        }
-
-        Response(200, true, "Project fetched", $result);
-    }
 }

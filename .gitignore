@@ -66,3 +66,4 @@ yarn.lock
 # PHP specific
 /.php-cs-fixer.cache
 .phpunit.cache
+config/jitsi.php

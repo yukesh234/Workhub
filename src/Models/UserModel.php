@@ -1,5 +1,7 @@
 <?php
 
+use GuzzleHttp\RetryMiddleware;
+
 require_once __DIR__ . '/../Models/Database.php';
 
 class UserModel
@@ -26,6 +28,7 @@ class UserModel
             email              VARCHAR(255) NOT NULL UNIQUE,
             password           VARCHAR(255) NOT NULL,
             userProfile        VARCHAR(255),
+            password_changed   TINYINT(1)     NOT NULL DEFAULT 0,
             profile_public_id  VARCHAR(255),
             role               ENUM('manager', 'member') NOT NULL,
             organization_id    INT NOT NULL,
@@ -86,6 +89,26 @@ class UserModel
         }
     }
 
+    public function deleteUser($user_id){
+        try{
+            $stmt= $this->db->prepare("
+            delete from user where user_id = :user_id
+            ");
+            $stmt->execute([
+                ':user_id' => $user_id
+            ]);
+            return [
+                'success' =>true,
+                'message' => 'Deleted user successfully'
+            ];
+        }catch(PDOException $e){
+            return [
+                'success' =>false,
+                'message' => 'DB error :' . $e->getMessage()
+            ];
+        }
+    }
+
     public function updatePassword($newPassword, $user_id)
     {
         try {
@@ -93,7 +116,7 @@ class UserModel
 
             $stmt = $this->db->prepare("
                 UPDATE user 
-                SET password = :password 
+                SET password = :password,password_changed = 1
                 WHERE user_id = :user_id
             ");
 
@@ -115,12 +138,28 @@ class UserModel
         }
     }
 
+   public function getUserById($user_id){
+    try{
+        $stmt = $this->db->prepare("
+            SELECT user_id, name, userProfile, profile_public_id, role, created_at
+            FROM user WHERE user_id = :user_id
+        ");
+        $stmt->execute([':user_id' => $user_id]);
+        return $stmt->fetch(PDO::FETCH_ASSOC);
+    }catch(\Exception $e){
+        return[
+            'success' => false,
+            'message' => "db error: " . $e->getMessage()
+        ];
+    }
+}
+
     public function getOrganizationMember($organization_id)
     {
         try {
 
             $stmt = $this->db->prepare("
-                SELECT user_id, name, userProfile, role, created_at
+                SELECT user_id, name, email, userProfile, role, created_at
                 FROM user
                 WHERE organization_id = :organization_id
                 ORDER BY created_at DESC
@@ -144,9 +183,8 @@ class UserModel
     public function getUserbyemail($email)
     {
         $stmt = $this->db->prepare("
-            SELECT user_id, name, email, password, userProfile, role, organization_id
-            FROM user
-            WHERE email = ?
+           SELECT user_id, name, email, password, password_changed, userProfile, role, organization_id
+           FROM user WHERE email = ?
         ");
 
         $stmt->execute([$email]);
@@ -180,5 +218,18 @@ class UserModel
             'message' => 'Logged in successfully',
             'data'    => $member
         ];
+    }
+
+    public function getRole($user_id){
+        try{
+            $stmt = $this->db->prepare("select role from user where user_id = ?");
+            $stmt->execute([$user_id]);
+            return $stmt->fetch(PDO::FETCH_ASSOC);
+        }catch(PDOException $e){
+            return [
+                'success' => false,
+                'message' => 'db error: ' . $e->getMessage()
+            ];
+        }
     }
 }

@@ -420,3 +420,15 @@ html, body {
 .toast.toast-show  { transform: translateY(0); opacity: 1; }
 .toast.toast-error .toast-icon { color: #f87171; }
 .toast.toast-success .toast-icon { color: #34d399; }
+/* OLD — everything hidden until hover */
+.project-actions { opacity: 0; }
+.project-card:hover .project-actions { opacity: 1; }
+
+/* NEW — container always visible, only edit + delete fade in on hover */
+.project-action-btn.edit-btn,
+.project-action-btn.delete { opacity: 0; }
+.project-card:hover .project-action-btn.edit-btn,
+.project-card:hover .project-action-btn.delete { opacity: 1; }
+
+/* add-member permanently shown with a green tint */
+.project-action-btn.add-member { opacity: 1; background: #e6f9f1; color: #1a8a5c; }

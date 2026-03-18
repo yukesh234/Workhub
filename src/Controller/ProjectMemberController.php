@@ -37,7 +37,8 @@ class ProjectMemberController {
         $role       = in_array($data['role'] ?? '', ['manager', 'member'])
                         ? $data['role']
                         : 'member';
-
+        //todo:make a query in the db and then get the role set it as it is 
+        
         // Verify project belongs to this admin's org
         $this->assertProjectOwnership($project_id);
 

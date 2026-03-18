@@ -21,13 +21,11 @@ function showState(name) {
     }
 }
 
-// ── Render org into the dashboard content area ───────────────────────
+// ── Render org into dashboard ────────────────────────────────────────
 function renderDashboardOrg(org) {
-    // Welcome subtitle
     const sub = document.getElementById('org-welcome-sub');
     if (sub) sub.textContent = `Here's your overview for ${org.name}.`;
 
-    // Logo slot
     const slot = document.getElementById('org-logo-slot');
     if (slot) {
         slot.innerHTML = org.organization_logo
@@ -35,16 +33,15 @@ function renderDashboardOrg(org) {
             : `<div class="org-card-logo-fallback">${esc(org.name.charAt(0).toUpperCase())}</div>`;
     }
 
-    const name = document.getElementById('org-card-name');
-    if (name) name.textContent = org.name;
+    const nameEl = document.getElementById('org-card-name');
+    if (nameEl) nameEl.textContent = org.name;
 
-    const slogan = document.getElementById('org-card-slogan');
-    if (slogan) slogan.textContent = org.slogan || '';
+    const sloganEl = document.getElementById('org-card-slogan');
+    if (sloganEl) sloganEl.textContent = org.slogan || '';
 
     const since = document.getElementById('org-meta-since');
     if (since) since.textContent = formatDateShort(org.created_at);
 
-    // Unlock quick action buttons once org exists
     ['qa-projects', 'qa-tasks', 'qa-members', 'qa-settings'].forEach(id => {
         document.getElementById(id)?.classList.remove('disabled');
     });
@@ -70,8 +67,8 @@ async function fetchOrg() {
             showState('no-org');
         }
     } catch (err) {
-        document.getElementById('error-msg').textContent =
-            err.message || 'Failed to connect to the server.';
+        const errMsg = document.getElementById('error-msg');
+        if (errMsg) errMsg.textContent = err.message || 'Failed to connect to the server.';
         showState('error');
         setSidebarNoOrg();
     }
@@ -95,12 +92,13 @@ document.getElementById('create-org-form')?.addEventListener('submit', async fun
         const json = await res.json();
 
         if (json.success && json.data) {
-            closeModal('modal-create-org');
+            // ✅ Fixed: was 'modal-create-org' — matches actual id="modalBackdrop"
+            closeModal('modalBackdrop');
             this.reset();
 
             // Reset logo preview
             const preview = document.getElementById('upload-preview');
-            const icon    = document.getElementById('upload-icon-wrap');
+            const icon    = document.getElementById('upload-icon');
             if (preview) { preview.src = ''; preview.style.display = 'none'; }
             if (icon)    icon.style.display = 'block';
 

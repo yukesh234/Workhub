@@ -41,10 +41,8 @@ function showToast(message, type = 'success') {
         <span>${esc(message)}</span>`;
     document.body.appendChild(toast);
 
-    // Animate in
     requestAnimationFrame(() => toast.classList.add('toast-show'));
 
-    // Auto-remove
     setTimeout(() => {
         toast.classList.remove('toast-show');
         toast.addEventListener('transitionend', () => toast.remove(), { once: true });
@@ -66,10 +64,11 @@ function setSidebarSkeleton() {
 function setSidebarNoOrg() {
     const el = document.getElementById('sidebar-org');
     if (!el) return;
+    // ✅ Fixed: was 'modal-create-org' — now matches the actual modal id="modalBackdrop"
     el.innerHTML = `
         <div class="sidebar-no-org">
             <p>No organization yet.<br>Create one to get started.</p>
-            <button class="btn-sidebar-create" onclick="openModal('modal-create-org')">
+            <button class="btn-sidebar-create" onclick="openModal('modalBackdrop')">
                 + Create Organization
             </button>
         </div>`;
@@ -93,13 +92,13 @@ function setSidebarOrg(org) {
             </div>
         </div>`;
 
-    // Unlock nav items — fixed: was 'nav-activity log' (had a space)
+    // ✅ Fixed: was 'nav-activity log' (had a space)
     ['nav-projects', 'nav-tasks', 'nav-members', 'nav-activity', 'nav-settings']
         .forEach(id => document.getElementById(id)?.classList.remove('disabled'));
 }
 
 // ── Logo upload preview ──────────────────────────────────────────────
-function previewLogo(e, previewId = 'upload-preview', iconId = 'upload-icon-wrap') {
+function previewLogo(e, previewId = 'upload-preview', iconId = 'upload-icon') {
     const file = e.target.files[0];
     if (!file) return;
     const reader = new FileReader();
@@ -121,7 +120,7 @@ function handleLogout() {
         window.location.href = BASE + '/logout';
 }
 
-// ── Date helper ──────────────────────────────────────────────────────
+// ── Date helpers ─────────────────────────────────────────────────────
 function formatDate(dateStr) {
     if (!dateStr) return '—';
     return new Date(dateStr).toLocaleDateString('en-US', {
@@ -144,7 +143,7 @@ if (topbarDate) {
     });
 }
 
-// ── Shared org fetch (used by dashboard + any page needing sidebar) ──
+// ── Shared org fetch (sidebar only — used by non-dashboard pages) ────
 async function loadSidebarOrg() {
     setSidebarSkeleton();
     try {
@@ -152,7 +151,6 @@ async function loadSidebarOrg() {
         const json = await res.json();
         if (json.success && json.data) {
             setSidebarOrg(json.data);
-            console.log(json);
             return json.data;
         } else {
             setSidebarNoOrg();
