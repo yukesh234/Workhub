@@ -28,6 +28,8 @@ require_once __DIR__ . '/../src/Utils/ActivityLogger.php';
 require_once __DIR__ . '/../src/Models/CommentModel.php';
 require_once __DIR__ . '/../src/Models/AttachmentModel.php';
 require_once __DIR__ . '/../src/Models/MeetingModel.php';
+require_once __DIR__ . '/../src/Models/SettingModel.php';
+require_once __DIR__ . '/../src/Controller/SettingController.php';
 
 function getBaseUrl(): string {
     return rtrim(dirname($_SERVER['SCRIPT_NAME']), '/');
@@ -55,6 +57,7 @@ $commentController       = new CommentController();
 $attachmentController    = new AttachmentController();
 $meetingController       = new MeetingController();
 $analyticsController     = new AnalyticsController();
+$settingController       = new SettingController();
 
 // ── Router ────────────────────────────────────────────────────────────
 switch ($requestUri) {
@@ -122,6 +125,11 @@ switch ($requestUri) {
         require_once __DIR__ . '/../views/Members.php';
         break;
 
+    case '/settings':
+        AuthMiddleware::checkAuth();
+        require_once __DIR__ . '/../views/Setting.php';
+        break;
+
     // ── Organization API ──────────────────────────────────────────────
     case '/api/organization':
         $adminController->getOrganization();
@@ -129,6 +137,51 @@ switch ($requestUri) {
 
     case '/organization/create':
         $adminController->createOrganization();
+        break;
+
+    // ── Settings API ──────────────────────────────────────────────────
+    case '/api/organization/update':
+        AuthMiddleware::checkAuth();
+        $settingController->updateOrgInfo();
+        break;
+
+    case '/api/organization/logo':
+        AuthMiddleware::checkAuth();
+        switch ($_SERVER['REQUEST_METHOD']) {
+            case 'POST':   $settingController->uploadOrgLogo(); break;
+            case 'DELETE': $settingController->removeOrgLogo(); break;
+            default: http_response_code(405); echo json_encode(['success'=>false,'message'=>'Method not allowed']);
+        }
+        break;
+
+    case '/api/organization/delete':
+        AuthMiddleware::checkAuth();
+        if ($_SERVER['REQUEST_METHOD'] === 'DELETE') {
+            $settingController->deleteOrganization();
+        } else {
+            http_response_code(405);
+            echo json_encode(['success'=>false,'message'=>'Method not allowed']);
+        }
+        break;
+
+    case '/api/members/all':
+        AuthMiddleware::checkAuth();
+        if ($_SERVER['REQUEST_METHOD'] === 'DELETE') {
+            $settingController->deleteAllMembers();
+        } else {
+            http_response_code(405);
+            echo json_encode(['success'=>false,'message'=>'Method not allowed']);
+        }
+        break;
+
+    case '/api/admin/change-password':
+        AuthMiddleware::checkAuth();
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $settingController->changeAdminPassword();
+        } else {
+            http_response_code(405);
+            echo json_encode(['success'=>false,'message'=>'Method not allowed']);
+        }
         break;
 
     // ── Admin Members API ─────────────────────────────────────────────
@@ -170,6 +223,11 @@ switch ($requestUri) {
         require_once __DIR__ . '/../views/Analytics.php';
         break;
 
+    case '/member-analytics':
+        AuthMiddleware::checkAuth();
+        require_once __DIR__ . '/../views/MemberAnalytics.php';
+        break;
+
     case '/api/analytics/admin':
         AuthMiddleware::checkAuth();
         $analyticsController->adminOverview();
@@ -178,6 +236,11 @@ switch ($requestUri) {
     case '/api/analytics/activity':
         AuthMiddleware::checkAuth();
         $analyticsController->activityLog();
+        break;
+
+    case '/api/analytics/member':
+        AuthMiddleware::checkAuth();
+        $analyticsController->memberAnalytics();
         break;
 
     case '/api/analytics/project':

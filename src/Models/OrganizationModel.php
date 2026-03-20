@@ -96,41 +96,73 @@ class OrganizationModel{
     return $stmt->fetch(PDO::FETCH_ASSOC);
 }
 
-    public function editOrganizationlogo($logourl,$organization_id){
-        try{
-            $sql = "
-            Update Organization set organization_logo = :organization_logo 
-            where organization_id = :organization_id 
-            ";
-            $stmt = $this->db->prepare($sql);
-            $stmt->execute([
-                ':organization_logo' => $logourl,
-                ':organization_id' => $organization_id
-            ]);
-            return [
-                "success" => true,
-                "message" => "successfully updated the logo"
-            ];
-        }catch(PDOException $e){
-            throw new Exception("Error changing organization logo", $e->getMessage());
+    public function updateOrganization(int $org_id, string $name, string $slogan): array {
+        try {
+            $stmt = $this->db->prepare("
+                UPDATE organization
+                SET name = :name, slogan = :slogan
+                WHERE organization_id = :id
+            ");
+            $stmt->execute([':name' => $name, ':slogan' => $slogan, ':id' => $org_id]);
+            return ['success' => true, 'message' => 'Organization updated'];
+        } catch (PDOException $e) {
+            return ['success' => false, 'message' => $e->getMessage()];
         }
     }
-
-    public function deleteOrganization($organization_id){
-        try{
+ 
+    // ── Update logo URL + public_id (pass null to clear both) ─────────
+    public function updateOrgLogo(int $org_id, ?string $logoUrl, ?string $publicId): array {
+        try {
             $stmt = $this->db->prepare("
-            delete from Organization where 
-            organization_id = :organization_id
+                UPDATE organization
+                SET organization_logo = :url,
+                    logo_public_id    = :pid
+                WHERE organization_id = :id
             ");
-            $stmt->execute([
-                ':organization_id' => $organization_id
-            ]);
-            return [
-                'success' => true,
-                'message' => "deleted the organization successfully"
-            ];
-        }catch(PDOException $e){
-            throw new Exception("error deleting oreganization:", $e->getMessage() );
+            $stmt->execute([':url' => $logoUrl, ':pid' => $publicId, ':id' => $org_id]);
+            return ['success' => true, 'message' => 'Logo updated'];
+        } catch (PDOException $e) {
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
+ 
+    // ── Delete org + cascade ──────────────────────────────────────────
+    // Deletes the organization row. All related data (projects, tasks,
+    // members, comments, attachments, activity_log) should be handled
+    // by ON DELETE CASCADE on your foreign keys. If you haven't set
+    // CASCADE, manually delete in order below.
+    public function deleteOrganization(int $org_id): array {
+        try {
+            $this->db->beginTransaction();
+ 
+            // If no FK cascades, delete in dependency order:
+            $this->db->prepare("DELETE FROM activity_log  WHERE org_id            = ?")->execute([$org_id]);
+            $this->db->prepare("DELETE FROM task_attachment WHERE task_id IN (
+                SELECT task_id FROM task WHERE project_id IN (
+                    SELECT project_id FROM project WHERE organization_id = ?
+                ))")->execute([$org_id]);
+            $this->db->prepare("DELETE FROM task_comment WHERE task_id IN (
+                SELECT task_id FROM task WHERE project_id IN (
+                    SELECT project_id FROM project WHERE organization_id = ?
+                ))")->execute([$org_id]);
+            $this->db->prepare("DELETE FROM task WHERE project_id IN (
+                SELECT project_id FROM project WHERE organization_id = ?
+            )")->execute([$org_id]);
+            $this->db->prepare("DELETE FROM project_members WHERE project_id IN (
+                SELECT project_id FROM project WHERE organization_id = ?
+            )")->execute([$org_id]);
+            $this->db->prepare("DELETE FROM project           WHERE organization_id = ?")->execute([$org_id]);
+            $this->db->prepare("DELETE FROM user              WHERE organization_id = ?")->execute([$org_id]);
+            $this->db->prepare("DELETE FROM meeting           WHERE project_id IN (
+                SELECT project_id FROM project WHERE organization_id = ?
+            )")->execute([$org_id]);
+            $this->db->prepare("DELETE FROM organization      WHERE organization_id = ?")->execute([$org_id]);
+ 
+            $this->db->commit();
+            return ['success' => true, 'message' => 'Organization deleted'];
+        } catch (PDOException $e) {
+            $this->db->rollBack();
+            return ['success' => false, 'message' => $e->getMessage()];
         }
     }
     

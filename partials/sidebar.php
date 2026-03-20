@@ -86,7 +86,7 @@ $activePage = $activePage ?? 'dashboard';
         <div class="nav-section-label">System</div>
 
         <a href="<?= $basePath ?>/settings"
-           class="nav-item disabled <?= $activePage === 'settings' ? 'active' : '' ?>"
+           class="nav-item <?= $activePage === 'settings' ? 'active' : '' ?>"
            title="Coming soon">
             <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                  stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

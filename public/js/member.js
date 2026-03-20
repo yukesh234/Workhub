@@ -94,19 +94,31 @@ function renderMembers() {
 
         return `
         <div class="member-card" style="animation-delay:${i * 0.04}s" id="mc-${m.user_id}">
-            <div class="mc-avatar-wrap">${avatarHtml}</div>
-            <div class="mc-name">${esc(m.name || '—')}</div>
+            <div class="mc-avatar-wrap" style="cursor:pointer" onclick="window.location='${BASE}/member-analytics?id=${m.user_id}'">${avatarHtml}</div>
+            <div class="mc-name" style="cursor:pointer" onclick="window.location='${BASE}/member-analytics?id=${m.user_id}'">${esc(m.name || '—')}</div>
             ${m.email ? `<div class="mc-email">${esc(m.email)}</div>` : ''}
             <span class="role-badge ${esc(m.role)}">${esc(m.role)}</span>
             <div class="mc-joined">Joined ${formatDateShort(m.created_at)}</div>
             <div class="mc-actions">
+                <button class="btn-mc-action" title="View analytics"
+                        onclick="window.location='${BASE}/member-analytics?id=${m.user_id}'">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                         stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="20" x2="18" y2="10"/>
+                        <line x1="12" y1="20" x2="12" y2="4"/>
+                        <line x1="6"  y1="20" x2="6"  y2="14"/>
+                        <line x1="2"  y1="20" x2="22" y2="20"/>
+                    </svg>
+                    Analytics
+                </button>
                 <button class="btn-mc-action danger" title="Remove member"
                         onclick="removeMember(${m.user_id}, '${esc(m.name || 'this member')}')">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                          stroke-linecap="round" stroke-linejoin="round">
                         <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
                         <circle cx="8.5" cy="7" r="4"/>
-                        <line x1="18" y1="8" x2="23" y2="13"/><line x1="23" y1="8" x2="18" y2="13"/>
+                        <line x1="18" y1="8" x2="23" y2="13"/>
+                        <line x1="23" y1="8" x2="18" y2="13"/>
                     </svg>
                     Remove
                 </button>

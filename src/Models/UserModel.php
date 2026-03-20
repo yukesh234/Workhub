@@ -232,4 +232,42 @@ class UserModel
             ];
         }
     }
+
+     public function deleteAllMembers(int $org_id): array {
+        try {
+            $this->db->beginTransaction();
+ 
+            // Get all user IDs first so we can remove project memberships
+            $stmt = $this->db->prepare("SELECT user_id FROM user WHERE organization_id = :org_id");
+            $stmt->execute([':org_id' => $org_id]);
+            $userIds = $stmt->fetchAll(PDO::FETCH_COLUMN);
+ 
+            if (!empty($userIds)) {
+                $placeholders = implode(',', array_fill(0, count($userIds), '?'));
+ 
+                // Remove from project_members
+                $this->db->prepare("DELETE FROM project_members WHERE user_id IN ($placeholders)")
+                    ->execute($userIds);
+ 
+                // Unassign their tasks (don't delete tasks, just clear assigned_to)
+                $this->db->prepare("UPDATE task SET assigned_to = NULL WHERE assigned_to IN ($placeholders)")
+                    ->execute($userIds);
+ 
+                // Remove activity log entries for these users
+                $this->db->prepare("DELETE FROM activity_log WHERE actor_id IN ($placeholders) AND actor_type = 'user'")
+                    ->execute($userIds);
+            }
+ 
+            // Delete all members of the org
+            $stmt = $this->db->prepare("DELETE FROM user WHERE organization_id = :org_id");
+            $stmt->execute([':org_id' => $org_id]);
+            $count = $stmt->rowCount();
+ 
+            $this->db->commit();
+            return ['success' => true, 'message' => 'All members removed', 'count' => $count];
+        } catch (PDOException $e) {
+            $this->db->rollBack();
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
 }

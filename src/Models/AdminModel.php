@@ -171,4 +171,32 @@ class Admin {
             'admin' => $admin
         ];
     }
+// ───────────────────────────────────────────────────────────────────
+
+    // ── Change admin password ─────────────────────────────────────────
+    // Verifies the current password first, then hashes and saves the new one.
+    public function changeAdminPassword(int $admin_id, string $currentPw, string $newPw): array {
+        try {
+            // Fetch current hash
+            $stmt = $this->db->prepare("SELECT password FROM admin WHERE id = ?");
+            $stmt->execute([$admin_id]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$row) {
+                return ['success' => false, 'message' => 'Admin not found'];
+            }
+
+            if (!password_verify($currentPw, $row['password'])) {
+                return ['success' => false, 'message' => 'Current password is incorrect'];
+            }
+
+            $hash = password_hash($newPw, PASSWORD_DEFAULT);
+            $stmt = $this->db->prepare("UPDATE admin SET password = ? WHERE id = ?");
+            $stmt->execute([$hash, $admin_id]);
+
+            return ['success' => true, 'message' => 'Password updated'];
+        } catch (PDOException $e) {
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
 }
