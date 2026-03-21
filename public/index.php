@@ -350,6 +350,12 @@ switch ($requestUri) {
         require_once __DIR__ . '/../views/User/userDashboard.php';
         break;
 
+    case '/user/tasks':
+        UserAuthMiddleware::checkAuth();
+        UserAuthMiddleware::requirePasswordChanged();
+        require_once __DIR__ . '/../views/User/Tasks.php';
+        break;
+
     case '/user/project':
         UserAuthMiddleware::checkAuth();
         UserAuthMiddleware::requirePasswordChanged();

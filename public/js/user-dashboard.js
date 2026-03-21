@@ -112,7 +112,7 @@ async function loadMyTasks() {
     }
 }
 
-// ── Render tasks ───────────────────────────────────────────────────────
+// ── Render tasks (dashboard — capped at 8, sorted by urgency) ─────────
 function renderTasks() {
     const list = document.getElementById('tasks-list');
     const now  = new Date(); now.setHours(0,0,0,0);
@@ -138,57 +138,83 @@ function renderTasks() {
         return;
     }
 
-    list.innerHTML = filtered.map(t => {
-        const isDone    = t.status === 'completed';
-        const dueDate   = t.due_date ? new Date(t.due_date) : null;
-        const isOverdue = dueDate && dueDate < now && !isDone;
-        const project   = allProjects.find(p => p.project_id === t.project_id);
+    // Sort: overdue first → in_progress → in_review → pending → completed
+    const statusOrder = { in_progress:0, in_review:1, pending:2, completed:3 };
+    const prioOrder   = { critical:0, high:1, medium:2, low:3 };
+    filtered.sort((a, b) => {
+        const aOver = a.due_date && new Date(a.due_date) < now && a.status !== 'completed';
+        const bOver = b.due_date && new Date(b.due_date) < now && b.status !== 'completed';
+        if (aOver !== bOver) return aOver ? -1 : 1;
+        const sDiff = (statusOrder[a.status]??9) - (statusOrder[b.status]??9);
+        if (sDiff !== 0) return sDiff;
+        return (prioOrder[a.priority]??9) - (prioOrder[b.priority]??9);
+    });
 
-        // Manager sees assigned_user_name; member sees their own tasks so we show project instead
-        const rightLabel = IS_MANAGER && t.assigned_user_name
-            ? `<span style="font-size:11px;color:var(--text-muted)">${esc(t.assigned_user_name)}</span>`
-            : '';
+    const LIMIT    = 8;
+    const total    = filtered.length;
+    const visible  = filtered.slice(0, LIMIT);
 
-        // Only the assigned user can change status
-        const isAssigned = t.assigned_to === WH_USER_ID;
+    list.innerHTML = visible.map(t => renderTaskRow(t, now)).join('');
 
-        return `
-        <div class="task-row" onclick="openTaskPanel(${t.task_id})">
-            <div class="task-check ${isDone ? 'done' : ''} ${isAssigned ? 'clickable' : 'locked'}"
-                 title="${isAssigned ? 'Update status' : 'Only the assigned member can update status'}"
-                 ${isAssigned ? `onclick="event.stopPropagation(); openStatusPopover(event, ${t.task_id}, ${t.project_id})"` : 'onclick="event.stopPropagation()"'}
-                 style="${isAssigned ? 'cursor:pointer' : 'cursor:not-allowed;opacity:.45'}"></div>
+    // "View all" footer if there are more
+    if (total > LIMIT) {
+        list.insertAdjacentHTML('beforeend', `
+            <div style="padding:12px 24px;border-top:1px solid var(--border);text-align:center">
+                <a href="${BASE}/user/tasks" style="font-size:13px;font-weight:600;color:var(--brand);text-decoration:none">
+                    View all ${total} tasks →
+                </a>
+            </div>`);
+    }
+}
 
-            <div class="task-body">
-                <div class="task-title ${isDone ? 'done' : ''}">${esc(t.title)}</div>
-                <div class="task-meta">
-                    ${project ? `<span class="task-project-chip">${esc(project.name)}</span>` : ''}
-                    <div class="priority-dot ${esc(t.priority)}"></div>
-                    ${t.due_date ? `<span class="task-due ${isOverdue ? 'overdue' : ''}">${isOverdue ? '⚠ ' : ''}${formatDateShort(t.due_date)}</span>` : ''}
-                    ${rightLabel}
-                </div>
+function renderTaskRow(t, now) {
+    if (!now) { now = new Date(); now.setHours(0,0,0,0); }
+    const isDone    = t.status === 'completed';
+    const dueDate   = t.due_date ? new Date(t.due_date) : null;
+    const isOverdue = dueDate && dueDate < now && !isDone;
+    const project   = allProjects.find(p => p.project_id === t.project_id);
+    const isAssigned = t.assigned_to === WH_USER_ID;
+
+    const rightLabel = IS_MANAGER && t.assigned_user_name
+        ? `<span style="font-size:11px;color:var(--text-muted)">${esc(t.assigned_user_name)}</span>`
+        : '';
+
+    return `
+    <div class="task-row" onclick="openTaskPanel(${t.task_id})">
+        <div class="task-check ${isDone ? 'done' : ''}"
+             title="${isAssigned ? 'Update status' : 'Only the assigned member can update status'}"
+             ${isAssigned ? `onclick="event.stopPropagation(); openStatusPopover(event, ${t.task_id}, ${t.project_id})"` : 'onclick="event.stopPropagation()"'}
+             style="${isAssigned ? 'cursor:pointer' : 'cursor:not-allowed;opacity:.45'}"></div>
+
+        <div class="task-body">
+            <div class="task-title ${isDone ? 'done' : ''}">${esc(t.title)}</div>
+            <div class="task-meta">
+                ${project ? `<span class="task-project-chip">${esc(project.name)}</span>` : ''}
+                <div class="priority-dot ${esc(t.priority)}"></div>
+                ${t.due_date ? `<span class="task-due ${isOverdue ? 'overdue' : ''}">${isOverdue ? '⚠ ' : ''}${formatDateShort(t.due_date)}</span>` : ''}
+                ${rightLabel}
             </div>
+        </div>
 
-            <span class="status-badge ${esc(t.status)}">${esc(t.status.replace('_',' '))}</span>
+        <span class="status-badge ${esc(t.status)}">${esc(t.status.replace('_',' '))}</span>
 
-            ${IS_MANAGER ? `
-            <div class="task-actions" onclick="event.stopPropagation()">
-                <button class="btn-task-sm" title="Edit" onclick="openEditTask(${t.task_id})">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                    </svg>
-                </button>
-                <button class="btn-task-sm danger" title="Delete" onclick="deleteTask(${t.task_id}, ${t.project_id})">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <polyline points="3 6 5 6 21 6"/>
-                        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
-                        <path d="M10 11v6"/><path d="M14 11v6"/>
-                    </svg>
-                </button>
-            </div>` : ''}
-        </div>`;
-    }).join('');
+        ${IS_MANAGER ? `
+        <div class="task-actions" onclick="event.stopPropagation()">
+            <button class="btn-task-sm" title="Edit" onclick="openEditTask(${t.task_id})">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                </svg>
+            </button>
+            <button class="btn-task-sm danger" title="Delete" onclick="deleteTask(${t.task_id}, ${t.project_id})">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="3 6 5 6 21 6"/>
+                    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                    <path d="M10 11v6"/><path d="M14 11v6"/>
+                </svg>
+            </button>
+        </div>` : ''}
+    </div>`;
 }
 
 // ── Stats ──────────────────────────────────────────────────────────────
@@ -397,7 +423,6 @@ function closeModalOutside(e, id) {
 }
 
 function handleLogout() {
-    if(!confirm("Are you sure you want to logout")) return;
     fetch(BASE + '/user/logout', { method: 'POST', credentials: 'same-origin' })
         .finally(() => { location.href = BASE + '/user/login'; });
 }
