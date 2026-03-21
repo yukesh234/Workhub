@@ -199,4 +199,25 @@ class Admin {
             return ['success' => false, 'message' => $e->getMessage()];
         }
     }
+
+    public function verifyOTPForReset(string $email, string $otp): array {
+    try {
+        $stmt = $this->db->prepare("SELECT otp, otp_expires_at FROM admin WHERE email = ?");
+        $stmt->execute([$email]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$row)          return ['success' => false, 'message' => 'Admin not found'];
+        if (!$row['otp'])   return ['success' => false, 'message' => 'No OTP requested'];
+        if (strtotime($row['otp_expires_at']) < time()) return ['success' => false, 'message' => 'OTP has expired'];
+        if ($row['otp'] !== $otp) return ['success' => false, 'message' => 'Invalid OTP'];
+
+        // Clear so it can't be reused
+        $this->db->prepare("UPDATE admin SET otp = NULL, otp_expires_at = NULL WHERE email = ?")
+            ->execute([$email]);
+
+        return ['success' => true];
+    } catch (PDOException $e) {
+        return ['success' => false, 'message' => $e->getMessage()];
+    }
+}
 }

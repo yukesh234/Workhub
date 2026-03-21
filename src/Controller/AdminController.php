@@ -356,4 +356,69 @@ class AdminController {
             Response(500, false, "Failed fetching members: " . $e->getMessage());
         }
     }
+
+    // ── GET /forgot-password ──────────────────────────────────────────
+public function showForgotPasswordForm(): void {
+    if (AuthMiddleware::isLoggedIn()) {
+        header("Location: " . $this->getBaseUrl() . "/dashboard");
+        exit();
+    }
+    require_once __DIR__ . '/../../views/auth/ForgotPassword.php';
+}
+
+// ── POST /api/admin/forgot-password  { email } ────────────────────
+public function forgotPassword(): void {
+    header('Content-Type: application/json');
+
+    $data  = json_decode(file_get_contents('php://input'), true) ?? [];
+    $email = trim($data['email'] ?? '');
+
+    if (empty($email)) Response(400, false, 'Email is required');
+
+    $admin = new Admin();
+    $adminRecord = $admin->getAdminByEmail($email);
+
+    // Generic message — don't reveal if email exists
+    if (!$adminRecord || !$adminRecord['isverified']) {
+        Response(200, true, 'If that email exists, an OTP has been sent.');
+    }
+
+    $otp = generateOTP(6);
+    $admin->storeOTP($email, $otp);
+
+    $sent = Email::sendVerificationEmail($email, $otp);
+    if (!$sent) Response(500, false, 'Failed to send email. Try again.');
+
+    Response(200, true, 'OTP sent to your email');
+}
+
+// ── POST /api/admin/reset-password  { email, otp, new_password } ──
+public function resetPassword(): void {
+    header('Content-Type: application/json');
+
+    $data     = json_decode(file_get_contents('php://input'), true) ?? [];
+    $email    = trim($data['email']        ?? '');
+    $otp      = trim($data['otp']          ?? '');
+    $password = trim($data['new_password'] ?? '');
+
+    if (!$email || !$otp || !$password) Response(400, false, 'All fields are required');
+    if (strlen($password) < 8)          Response(400, false, 'Password must be at least 8 characters');
+
+    $admin  = new Admin();
+    $result = $admin->verifyOTPForReset($email, $otp);
+    if (!$result['success']) Response(400, false, $result['message']);
+
+    $adminRecord = $admin->getAdminByEmail($email);
+    if (!$adminRecord) Response(404, false, 'Admin not found');
+
+    $hash = password_hash($password, PASSWORD_DEFAULT);
+    try {
+        $db = Database::getInstance()->getConnection();
+        $db->prepare("UPDATE admin SET password = ? WHERE id = ?")->execute([$hash, $adminRecord['id']]);
+    } catch (PDOException $e) {
+        Response(500, false, $e->getMessage());
+    }
+
+    Response(200, true, 'Password reset successfully. You can now log in.');
+}
 }

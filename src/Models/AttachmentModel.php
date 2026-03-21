@@ -103,4 +103,22 @@ class AttachmentModel {
             return ['success' => false, 'message' => $e->getMessage()];
         }
     }
+    public function getProjectFiles(int $project_id): array {
+    try {
+        $stmt = $this->db->prepare("
+            SELECT
+                a.attachment_id, a.file_name, a.file_url, a.file_type,
+                a.file_size, a.created_at, a.public_id,
+                t.task_id, t.title AS task_title
+            FROM task_attachment a
+            JOIN task t ON t.task_id = a.task_id
+            WHERE t.project_id = :project_id
+            ORDER BY a.created_at DESC
+        ");
+        $stmt->execute([':project_id' => $project_id]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (PDOException $e) {
+        return [];
+    }
+}
 }

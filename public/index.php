@@ -95,6 +95,28 @@ switch ($requestUri) {
             ? $adminController->processVerify()
             : $adminController->showVerifyForm();
         break;
+    
+        case '/forgot-password':
+            $adminController->showForgotPasswordForm();
+        break;
+
+    case '/api/admin/forgot-password':
+            if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $adminController->forgotPassword();
+            } else {
+            http_response_code(405);
+            echo json_encode(['success'=>false,'message'=>'Method not allowed']);
+            }
+        break;
+
+    case '/api/admin/reset-password':
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $adminController->resetPassword();
+    } else {
+        http_response_code(405);
+        echo json_encode(['success'=>false,'message'=>'Method not allowed']);
+    }
+    break;
 
     case '/resend-otp':
         $adminController->resendOTP();
@@ -288,6 +310,9 @@ switch ($requestUri) {
                 echo json_encode(['success'=>false,'message'=>'Method not allowed']);
         }
         break;
+    case '/api/projects/files':
+    $attachmentController->getProjectFiles();
+    break;
 
     // ── Admin Projects API ────────────────────────────────────────────
     case '/api/projects':

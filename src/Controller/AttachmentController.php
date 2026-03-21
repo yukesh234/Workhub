@@ -135,4 +135,16 @@ class AttachmentController {
             return (int) ($stmt->fetchColumn() ?: 0);
         } catch (\Throwable $e) { return 0; }
     }
+
+    // ── GET /api/projects/files?project_id=X ─────────────────────────
+public function getProjectFiles(): void {
+    header('Content-Type: application/json');
+    $this->requireAnyAuth();
+
+    $project_id = (int) ($_GET['project_id'] ?? 0);
+    if (!$project_id) Response(400, false, 'project_id is required');
+
+    $files = $this->attachment->getProjectFiles($project_id);
+    Response(200, true, 'Project files fetched', $files);
+}
 }

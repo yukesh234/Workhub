@@ -688,8 +688,22 @@ $activePage   = 'projects';
                         </div>
                     </div>
 
-                </div>
-            </div>
+                    <!-- Project Files -->
+                    <div class="panel-card animate-in" style="animation-delay:.3s">
+                        <div class="panel-card-header">
+                            <h3>Project Files</h3>
+                            <span id="project-files-count" style="font-size:12px;color:var(--text-muted);font-weight:600"></span>
+                        </div>
+                        <div id="project-files-list">
+                            <div style="padding:16px 20px">
+                                <div class="sk-line" style="height:44px;border-radius:8px;margin-bottom:8px"></div>
+                                <div class="sk-line" style="height:44px;border-radius:8px"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div><!-- /.right-panel -->
+            </div><!-- /.project-main -->
 
         </main>
     </div>

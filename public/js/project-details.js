@@ -20,7 +20,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('tf-due').min = new Date().toISOString().split('T')[0];
 
-    Promise.all([loadProject(), loadMembers(), loadTasks()]);
+    Promise.all([loadProject(), loadMembers(), loadTasks(), loadProjectFiles()]);
 
     // Init meeting — admin always has canEndMeeting
     window._canEndMeeting = true;
@@ -658,3 +658,252 @@ document.addEventListener('keydown', e => {
         currentTask = null;
     }
 });
+
+// ══════════════════════════════════════════════════════════════════════
+// ── Project Files Panel ───────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════
+
+async function loadProjectFiles() {
+    const wrap = document.getElementById('project-files-list');
+    if (!wrap) return;
+    wrap.innerHTML = `<div style="padding:16px 20px;color:var(--text-muted);font-size:13px">Loading…</div>`;
+
+    try {
+        const res  = await fetch(`${BASE}/api/projects/files?project_id=${PROJECT_ID}`, { credentials:'same-origin' });
+        const json = await res.json();
+        if (!json.success) throw new Error(json.message);
+        renderProjectFiles(json.data);
+    } catch (err) {
+        wrap.innerHTML = `<div style="padding:16px 20px;color:#dc2626;font-size:13px">${esc(err.message)}</div>`;
+    }
+}
+
+function renderProjectFiles(files) {
+    const wrap = document.getElementById('project-files-list');
+    const count = document.getElementById('project-files-count');
+    if (count) count.textContent = files.length;
+
+    if (!files.length) {
+        wrap.innerHTML = `
+            <div style="padding:32px 20px;text-align:center;color:var(--text-muted)">
+                <div style="font-size:32px;margin-bottom:10px">📎</div>
+                <div style="font-size:13px">No files uploaded yet.<br>Attach files to tasks to see them here.</div>
+            </div>`;
+        return;
+    }
+
+    const icons = {
+        'application/pdf':'📄','text/plain':'📝','text/csv':'📊',
+        'application/msword':'📝',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document':'📝',
+        'application/vnd.ms-excel':'📊',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':'📊',
+        'application/zip':'🗜️',
+    };
+
+    // Group by task
+    const byTask = {};
+    files.forEach(f => {
+        if (!byTask[f.task_id]) byTask[f.task_id] = { title: f.task_title, files: [] };
+        byTask[f.task_id].files.push(f);
+    });
+
+    wrap.innerHTML = Object.values(byTask).map(group => `
+        <div style="border-bottom:1px solid var(--border)">
+            <div style="padding:10px 20px 6px;font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">
+                ${esc(group.title)}
+            </div>
+            ${group.files.map(f => {
+                const isImage = f.file_type?.startsWith('image/');
+                const icon    = isImage ? '🖼️' : (icons[f.file_type] || '📎');
+                const sizeStr = f.file_size > 1048576
+                    ? (f.file_size/1048576).toFixed(1)+' MB'
+                    : (f.file_size/1024).toFixed(0)+' KB';
+                return `
+                <div style="display:flex;align-items:center;gap:12px;padding:10px 20px;transition:background var(--transition)"
+                     onmouseenter="this.style.background='var(--surface-2)'"
+                     onmouseleave="this.style.background=''">
+                    ${isImage
+                        ? `<img src="${esc(f.file_url)}" style="width:40px;height:40px;border-radius:6px;object-fit:cover;border:1px solid var(--border);cursor:pointer;flex-shrink:0"
+                               onclick="openPreview('${esc(f.file_url)}','${esc(f.file_name)}')">`
+                        : `<div style="width:40px;height:40px;border-radius:6px;background:var(--surface-2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">${icon}</div>`}
+                    <div style="flex:1;min-width:0">
+                        <div style="font-size:13px;font-weight:500;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(f.file_name)}</div>
+                        <div style="font-size:11px;color:var(--text-muted);margin-top:1px">${sizeStr} · ${formatDateShort(f.created_at)}</div>
+                    </div>
+                    <div style="display:flex;gap:6px;flex-shrink:0">
+                        ${isImage ? `
+                        <button onclick="openPreview('${esc(f.file_url)}','${esc(f.file_name)}')"
+                            style="padding:5px 10px;border:1.5px solid var(--border);border-radius:6px;background:var(--surface);font-family:'DM Sans',sans-serif;font-size:11px;font-weight:600;color:var(--text-secondary);cursor:pointer;transition:all .2s"
+                            onmouseenter="this.style.borderColor='var(--brand)';this.style.color='var(--brand)'"
+                            onmouseleave="this.style.borderColor='var(--border)';this.style.color='var(--text-secondary)'">
+                            Preview
+                        </button>` : ''}
+                        <a href="${esc(f.file_url)}" target="_blank" download="${esc(f.file_name)}"
+                            style="padding:5px 10px;border:1.5px solid var(--border);border-radius:6px;background:var(--surface);font-family:'DM Sans',sans-serif;font-size:11px;font-weight:600;color:var(--text-secondary);cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:4px;transition:all .2s"
+                            onmouseenter="this.style.borderColor='var(--brand)';this.style.color='var(--brand)'"
+                            onmouseleave="this.style.borderColor='var(--border)';this.style.color='var(--text-secondary)'">
+                            ↓ Download
+                        </a>
+                    </div>
+                </div>`;
+            }).join('')}
+        </div>`).join('');
+}
+
+// ── Image lightbox ─────────────────────────────────────────────────────
+function openPreview(url, name) {
+    const existing = document.getElementById('img-lightbox');
+    if (existing) existing.remove();
+
+    const lb = document.createElement('div');
+    lb.id = 'img-lightbox';
+    lb.style.cssText = `position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:999;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;cursor:zoom-out`;
+    lb.innerHTML = `
+        <img src="${url}" alt="${name}" style="max-width:90vw;max-height:80vh;border-radius:8px;box-shadow:0 20px 60px rgba(0,0,0,.5)">
+        <div style="display:flex;align-items:center;gap:16px">
+            <span style="color:rgba(255,255,255,.7);font-size:13px">${name}</span>
+            <a href="${url}" target="_blank" download="${name}"
+               style="padding:8px 18px;background:var(--brand);color:#fff;border-radius:8px;font-size:13px;font-weight:600;text-decoration:none"
+               onclick="event.stopPropagation()">↓ Download</a>
+            <button onclick="this.closest('#img-lightbox').remove()"
+               style="padding:8px 18px;border:1.5px solid rgba(255,255,255,.3);background:transparent;color:#fff;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">Close</button>
+        </div>`;
+    lb.addEventListener('click', e => { if (e.target === lb) lb.remove(); });
+    document.body.appendChild(lb);
+
+    document.addEventListener('keydown', function esc(e) {
+        if (e.key === 'Escape') { lb.remove(); document.removeEventListener('keydown', esc); }
+    });
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// ── Project Files Panel ───────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════
+
+async function loadProjectFiles() {
+    const wrap = document.getElementById('project-files-list');
+    if (!wrap) return;
+    wrap.innerHTML = `<div style="padding:16px 20px;color:var(--text-muted);font-size:13px">Loading…</div>`;
+
+    try {
+        const res  = await fetch(`${BASE}/api/projects/files?project_id=${PROJECT_ID}`, { credentials:'same-origin' });
+        const json = await res.json();
+        if (!json.success) throw new Error(json.message);
+        renderProjectFiles(json.data);
+    } catch (err) {
+        wrap.innerHTML = `<div style="padding:16px 20px;color:#dc2626;font-size:13px">${esc(err.message)}</div>`;
+    }
+}
+
+function renderProjectFiles(files) {
+    const wrap  = document.getElementById('project-files-list');
+    const count = document.getElementById('project-files-count');
+    if (count) count.textContent = files.length ? `${files.length} file${files.length !== 1 ? 's' : ''}` : '';
+
+    if (!files.length) {
+        wrap.innerHTML = `
+            <div style="padding:28px 20px;text-align:center;color:var(--text-muted)">
+                <div style="font-size:28px;margin-bottom:8px">📎</div>
+                <div style="font-size:13px;line-height:1.5">No files yet.<br>Attach files to tasks to see them here.</div>
+            </div>`;
+        return;
+    }
+
+    const icons = {
+        'application/pdf': '📄',
+        'text/plain': '📝', 'text/csv': '📊',
+        'application/msword': '📝',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '📝',
+        'application/vnd.ms-excel': '📊',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '📊',
+        'application/zip': '🗜️',
+    };
+
+    // Group by task
+    const byTask = {};
+    files.forEach(f => {
+        if (!byTask[f.task_id]) byTask[f.task_id] = { title: f.task_title, files: [] };
+        byTask[f.task_id].files.push(f);
+    });
+
+    wrap.innerHTML = Object.values(byTask).map(group => `
+        <div style="border-bottom:1px solid var(--border)">
+            <div style="padding:9px 20px 4px;font-size:10.5px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">
+                ${esc(group.title)}
+            </div>
+            ${group.files.map(f => {
+                const isImage = f.file_type?.startsWith('image/');
+                const icon    = isImage ? '🖼️' : (icons[f.file_type] || '📎');
+                const sizeStr = f.file_size > 1048576
+                    ? (f.file_size / 1048576).toFixed(1) + ' MB'
+                    : (f.file_size / 1024).toFixed(0) + ' KB';
+                return `
+                <div style="display:flex;align-items:center;gap:10px;padding:8px 20px;transition:background .2s"
+                     onmouseenter="this.style.background='var(--surface-2)'"
+                     onmouseleave="this.style.background=''">
+                    ${isImage
+                        ? `<img src="${esc(f.file_url)}" style="width:38px;height:38px;border-radius:6px;object-fit:cover;border:1px solid var(--border);cursor:pointer;flex-shrink:0"
+                               onclick="openFileLightbox('${esc(f.file_url)}','${esc(f.file_name)}')">`
+                        : `<div style="width:38px;height:38px;border-radius:6px;background:var(--surface-2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">${icon}</div>`}
+                    <div style="flex:1;min-width:0">
+                        <div style="font-size:12.5px;font-weight:500;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(f.file_name)}">${esc(f.file_name)}</div>
+                        <div style="font-size:11px;color:var(--text-muted);margin-top:1px">${sizeStr} · ${formatDateShort(f.created_at)}</div>
+                    </div>
+                    <div style="display:flex;gap:4px;flex-shrink:0">
+                        ${isImage ? `
+                        <button onclick="openFileLightbox('${esc(f.file_url)}','${esc(f.file_name)}')"
+                            title="Preview"
+                            style="width:28px;height:28px;border:1.5px solid var(--border);border-radius:6px;background:var(--surface);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.2s"
+                            onmouseenter="this.style.borderColor='var(--brand)'"
+                            onmouseleave="this.style.borderColor='var(--border)'">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                            </svg>
+                        </button>` : ''}
+                        <a href="${esc(f.file_url)}" target="_blank" download="${esc(f.file_name)}"
+                            title="Download"
+                            style="width:28px;height:28px;border:1.5px solid var(--border);border-radius:6px;background:var(--surface);cursor:pointer;display:flex;align-items:center;justify-content:center;text-decoration:none;transition:.2s"
+                            onmouseenter="this.style.borderColor='var(--brand)'"
+                            onmouseleave="this.style.borderColor='var(--border)'">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                <polyline points="7 10 12 15 17 10"/>
+                                <line x1="12" y1="15" x2="12" y2="3"/>
+                            </svg>
+                        </a>
+                    </div>
+                </div>`;
+            }).join('')}
+        </div>`).join('');
+}
+
+// ── Image lightbox ────────────────────────────────────────────────────
+function openFileLightbox(url, name) {
+    const existing = document.getElementById('file-lightbox');
+    if (existing) existing.remove();
+
+    const lb = document.createElement('div');
+    lb.id = 'file-lightbox';
+    lb.style.cssText = `position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;cursor:zoom-out;padding:24px`;
+    lb.innerHTML = `
+        <img src="${url}" alt="${name}"
+             style="max-width:90vw;max-height:78vh;border-radius:10px;box-shadow:0 20px 60px rgba(0,0,0,.6);object-fit:contain">
+        <div style="display:flex;align-items:center;gap:12px">
+            <span style="color:rgba(255,255,255,.65);font-size:13px;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${name}</span>
+            <a href="${url}" target="_blank" download="${name}" onclick="event.stopPropagation()"
+               style="padding:8px 18px;background:var(--brand);color:#fff;border-radius:8px;font-size:13px;font-weight:600;text-decoration:none;white-space:nowrap">
+               ↓ Download
+            </a>
+            <button onclick="document.getElementById('file-lightbox').remove()"
+               style="padding:8px 18px;border:1.5px solid rgba(255,255,255,.3);background:transparent;color:#fff;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">
+               Close
+            </button>
+        </div>`;
+    lb.addEventListener('click', e => { if (e.target === lb) lb.remove(); });
+    document.body.appendChild(lb);
+
+    document.addEventListener('keydown', function handler(e) {
+        if (e.key === 'Escape') { lb.remove(); document.removeEventListener('keydown', handler); }
+    });
+}
