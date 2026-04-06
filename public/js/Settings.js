@@ -124,7 +124,7 @@ async function saveOrgInfo(e) {
     }
 }
 
-// ── Logo upload ───────────────────────────────────────────────────────
+// ── Logo upload
 async function previewAndUploadLogo(input) {
     const file = input.files[0];
     if (!file) return;
@@ -181,7 +181,7 @@ async function previewAndUploadLogo(input) {
     input.value = '';
 }
 
-// ── Remove logo ───────────────────────────────────────────────────────
+//  Remove logo 
 async function removeLogo() {
     if (!currentOrg?.organization_logo) {
         showToast('No logo to remove', 'error');
@@ -258,7 +258,7 @@ async function changePassword(e) {
     }
 }
 
-// ── Password strength ─────────────────────────────────────────────────
+// ── Password strength
 function checkPwStrength(val) {
     const reqs = {
         len:     val.length >= 8,
@@ -291,7 +291,7 @@ function toggleEye(inputId, btn) {
     btn.querySelector('svg').style.opacity = isHidden ? '0.4' : '1';
 }
 
-// ── Confirm dialog ────────────────────────────────────────────────────
+// ── Confirm dialog 
 const confirmConfigs = {
     deleteOrg: {
         title:       'Delete Organization',

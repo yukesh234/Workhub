@@ -121,6 +121,7 @@ async function startMeeting() {
         });
         const json = await res.json();
         if (!json.success) throw new Error(json.message);
+        console.log(json);
 
         activeMeeting = json.data;
         renderMeetingBar();
@@ -153,7 +154,7 @@ async function joinMeeting() {
     }
 }
 
-// ── Open JaaS tab with JWT ────────────────────────────────────────────
+// Open JaaS tab with JWT
 // The JWT has features.lobby=false — JaaS server honours this and lets
 // the user straight in with no lobby, no moderator wait.
 function openJaaSTab(jaasUrl, token) {
@@ -161,7 +162,7 @@ function openJaaSTab(jaasUrl, token) {
     window.open(url, '_blank');
 }
 
-// ── End meeting ───────────────────────────────────────────────────────
+// End meeting
 async function endMeeting() {
     if (!activeMeeting || !confirm('End the meeting for everyone?')) return;
     try {
@@ -180,7 +181,7 @@ async function endMeeting() {
     } catch (err) { showToast(err.message, 'error'); }
 }
 
-// ── Aliases for any old HTML that still has these ─────────────────────
+// Aliases for any old HTML that still has these
 function openMeetingModal()  { joinMeeting(); }
 function openMeetingTab()    { joinMeeting(); }
 function closeMeetingModal() {}

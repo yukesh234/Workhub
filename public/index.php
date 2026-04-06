@@ -59,10 +59,10 @@ $meetingController       = new MeetingController();
 $analyticsController     = new AnalyticsController();
 $settingController       = new SettingController();
 
-// ── Router ────────────────────────────────────────────────────────────
+//  Router
 switch ($requestUri) {
 
-    // ── Root ──────────────────────────────────────────────────────────
+    //  Root
     case '/':
         if (AuthMiddleware::isLoggedIn()) {
             header('Location: ' . getBaseUrl() . '/dashboard');
@@ -77,7 +77,7 @@ switch ($requestUri) {
         require_once __DIR__ . '/../views/Home.php';
         break;
 
-    // ── Admin auth ────────────────────────────────────────────────────
+    //  Admin auth
     case '/register':
         $_SERVER['REQUEST_METHOD'] === 'POST'
             ? $adminController->processRegister()
@@ -126,7 +126,7 @@ switch ($requestUri) {
         $adminController->Logout();
         break;
 
-    // ── Admin views ───────────────────────────────────────────────────
+    //  Admin views
     case '/dashboard':
         AuthMiddleware::checkAuth();
         require_once __DIR__ . '/../views/Dashboard.php';
@@ -152,7 +152,7 @@ switch ($requestUri) {
         require_once __DIR__ . '/../views/Setting.php';
         break;
 
-    // ── Organization API ──────────────────────────────────────────────
+    //  Organization API 
     case '/api/organization':
         $adminController->getOrganization();
         break;
@@ -161,7 +161,7 @@ switch ($requestUri) {
         $adminController->createOrganization();
         break;
 
-    // ── Settings API ──────────────────────────────────────────────────
+    //  Settings API 
     case '/api/organization/update':
         AuthMiddleware::checkAuth();
         $settingController->updateOrgInfo();
@@ -206,7 +206,7 @@ switch ($requestUri) {
         }
         break;
 
-    // ── Admin Members API ─────────────────────────────────────────────
+    // ── Admin Members API
     case '/api/members':
         AuthMiddleware::checkAuth();
         switch ($_SERVER['REQUEST_METHOD']) {
@@ -217,7 +217,7 @@ switch ($requestUri) {
         }
         break;
 
-    // ── Admin Task API ────────────────────────────────────────────────
+    // ── Admin Task API
     case '/api/tasks':
         AuthMiddleware::checkAuth();
         switch ($_SERVER['REQUEST_METHOD']) {
@@ -239,7 +239,7 @@ switch ($requestUri) {
         }
         break;
 
-    // ── Meetings API ──────────────────────────────────────────────────
+    // ── Meetings API
     case '/analytics':
         AuthMiddleware::checkAuth();
         require_once __DIR__ . '/../views/Analytics.php';
@@ -287,7 +287,7 @@ switch ($requestUri) {
         $meetingController->history();
         break;
 
-    // ── Comments API ──────────────────────────────────────────────────
+    //  Comments API
     case '/api/tasks/comments':
         switch ($_SERVER['REQUEST_METHOD']) {
             case 'GET':    $commentController->getComments();    break;
@@ -299,7 +299,7 @@ switch ($requestUri) {
         }
         break;
 
-    // ── Attachments API ───────────────────────────────────────────────
+    //  Attachments API
     case '/api/tasks/attachments':
         switch ($_SERVER['REQUEST_METHOD']) {
             case 'GET':    $attachmentController->getAttachments();    break;
@@ -314,7 +314,7 @@ switch ($requestUri) {
     $attachmentController->getProjectFiles();
     break;
 
-    // ── Admin Projects API ────────────────────────────────────────────
+    //  Admin Projects API 
     case '/api/projects':
         AuthMiddleware::checkAuth();
         switch ($_SERVER['REQUEST_METHOD']) {
@@ -331,7 +331,7 @@ switch ($requestUri) {
         $projectController->getProjectByID();
         break;
 
-    // ── Admin Project Members API ─────────────────────────────────────
+    //  Admin Project Members API 
     case '/api/projects/members':
         AuthMiddleware::checkAuth();
         switch ($_SERVER['REQUEST_METHOD']) {
@@ -347,9 +347,8 @@ switch ($requestUri) {
         $projectMemberController->changeRole();
         break;
 
-    // ══════════════════════════════════════════════════════════════════
-    // ── USER (member / manager) routes ───────────────────────────────
-    // ══════════════════════════════════════════════════════════════════
+   
+    // USER (member / manager) routes 
 
     case '/user/login':
         $_SERVER['REQUEST_METHOD'] === 'POST'
@@ -387,7 +386,7 @@ switch ($requestUri) {
         require_once __DIR__ . '/../views/User/project-description.php';
         break;
 
-    // ── User-side API: Projects ───────────────────────────────────────
+    //  User-side API: Projects 
     case '/api/user/projects':
         UserAuthMiddleware::checkAuth();
         UserAuthMiddleware::requirePasswordChanged();
@@ -399,7 +398,7 @@ switch ($requestUri) {
         }
         break;
 
-    // ── User-side API: Tasks ──────────────────────────────────────────
+    //  User-side API: Tasks
     case '/api/user/tasks':
         UserAuthMiddleware::checkAuth();
         UserAuthMiddleware::requirePasswordChanged();
@@ -423,7 +422,7 @@ switch ($requestUri) {
         }
         break;
 
-    // ── User-side API: Project members (assignee dropdown) ────────────
+    //  User-side API: Project members (assignee dropdown)
     case '/api/user/project/single':
         UserAuthMiddleware::checkAuth();
         UserAuthMiddleware::requirePasswordChanged();
@@ -452,7 +451,7 @@ switch ($requestUri) {
         }
         break;
 
-    // ── 404 ───────────────────────────────────────────────────────────
+    //  404
     default:
         http_response_code(404);
         echo "404 — Page Not Found";

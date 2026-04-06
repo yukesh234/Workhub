@@ -9,7 +9,7 @@ class AnalyticsModel {
         $this->db = Database::getInstance()->getConnection();
     }
 
-    // ── Admin org-wide analytics ──────────────────────────────────────
+    // ── Admin org-wide analytics
 
     public function getOrgSummary(int $org_id): array {
         $stmt = $this->db->prepare("

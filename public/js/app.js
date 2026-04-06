@@ -6,7 +6,7 @@
 
 const BASE = window.WH_BASE || '';
 
-// ── XSS helper ──────────────────────────────────────────────────────
+// ── XSS helper 
 function esc(str) {
     return String(str)
         .replace(/&/g, '&amp;').replace(/</g, '&lt;')
@@ -14,7 +14,7 @@ function esc(str) {
         .replace(/'/g, '&#39;');
 }
 
-// ── Modal ───────────────────────────────────────────────────────────
+//  Modal
 function openModal(id)  { document.getElementById(id)?.classList.add('open'); }
 function closeModal(id) { document.getElementById(id)?.classList.remove('open'); }
 
@@ -28,7 +28,7 @@ document.addEventListener('keydown', e => {
                 .forEach(m => m.classList.remove('open'));
 });
 
-// ── Toast notifications ─────────────────────────────────────────────
+//  Toast notifications
 function showToast(message, type = 'success') {
     const existing = document.getElementById('wh-toast');
     if (existing) existing.remove();
@@ -64,7 +64,6 @@ function setSidebarSkeleton() {
 function setSidebarNoOrg() {
     const el = document.getElementById('sidebar-org');
     if (!el) return;
-    // ✅ Fixed: was 'modal-create-org' — now matches the actual modal id="modalBackdrop"
     el.innerHTML = `
         <div class="sidebar-no-org">
             <p>No organization yet.<br>Create one to get started.</p>
@@ -92,12 +91,11 @@ function setSidebarOrg(org) {
             </div>
         </div>`;
 
-    // ✅ Fixed: was 'nav-activity log' (had a space)
     ['nav-projects', 'nav-tasks', 'nav-members', 'nav-activity', 'nav-settings']
         .forEach(id => document.getElementById(id)?.classList.remove('disabled'));
 }
 
-// ── Logo upload preview ──────────────────────────────────────────────
+// ── Logo upload preview 
 function previewLogo(e, previewId = 'upload-preview', iconId = 'upload-icon') {
     const file = e.target.files[0];
     if (!file) return;
@@ -114,13 +112,13 @@ function previewLogo(e, previewId = 'upload-preview', iconId = 'upload-icon') {
     reader.readAsDataURL(file);
 }
 
-// ── Logout ───────────────────────────────────────────────────────────
+// ── Logout
 function handleLogout() {
     if (confirm('Are you sure you want to logout?'))
         window.location.href = BASE + '/logout';
 }
 
-// ── Date helpers ─────────────────────────────────────────────────────
+// ── Date helpers 
 function formatDate(dateStr) {
     if (!dateStr) return '—';
     return new Date(dateStr).toLocaleDateString('en-US', {
@@ -135,7 +133,7 @@ function formatDateShort(dateStr) {
     });
 }
 
-// ── Set topbar date ──────────────────────────────────────────────────
+//  Set topbar date
 const topbarDate = document.getElementById('topbarDate');
 if (topbarDate) {
     topbarDate.textContent = new Date().toLocaleDateString('en-US', {
@@ -143,7 +141,7 @@ if (topbarDate) {
     });
 }
 
-// ── Shared org fetch (sidebar only — used by non-dashboard pages) ────
+//  Shared org fetch (sidebar only — used by non-dashboard pages) 
 async function loadSidebarOrg() {
     setSidebarSkeleton();
     try {

@@ -146,7 +146,7 @@ function renderProjects() {
         </div>`).join('');
 }
 
-// ── Members Modal (card click) ────────────────────────────────────────
+// ── Members Modal (card click)
 async function openMembersModal(projectId, projectName) {
     activeMembersProjectId = projectId;
 
@@ -242,7 +242,7 @@ async function removeMemberFromModal(userId) {
     } catch (err) { showToast(err.message, 'error'); }
 }
 
-// ── Member picker ─────────────────────────────────────────────────────
+// ── Member picker
 let currentProjectMemberIds = new Set(); // tracks who's already in the project
 
 async function openMemberPicker(projectId, projectName) {

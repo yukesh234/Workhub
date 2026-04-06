@@ -31,7 +31,7 @@ class MeetingController {
         $token  = $this->generateJaaSToken($author_id, $author_type, $room_name, true);
         $org_id = $this->getOrgIdFromProject($project_id);
 
-        // ── Log ──────────────────────────────────────────────────────
+        // Log
         ActivityLogger::log('meeting_started', 'meeting', $org_id, (int) $result['meeting_id'], "project #{$project_id}");
 
         Response(201, true, 'Meeting started', [
@@ -121,13 +121,15 @@ class MeetingController {
 
         $now     = time();
         $header  = $this->b64url(json_encode(['alg'=>'RS256','kid'=>JAAS_APP_ID.'/'.JAAS_API_KEY_ID,'typ'=>'JWT']));
+        //payload sent: iss= who issues token, aud=who token is for, iat=issued at, exp=expiry, nbf=not before,
+        // sub=JAAS_APP_ID, context=user info and features, room=room name
         $payload = $this->b64url(json_encode([
             'iss'=>'chat','aud'=>'jitsi','iat'=>$now,'exp'=>$now+7200,'nbf'=>$now-10,'sub'=>JAAS_APP_ID,
             'context'=>['user'=>['id'=>$uid,'name'=>$name,'email'=>$email,'moderator'=>$isModerator],
                         'features'=>['lobby'=>false,'recording'=>$isModerator,'livestreaming'=>false,'outbound-call'=>false]],
             'room'=>$roomName,
         ]));
-
+        //signinginput = base64 jwt header + jwt payload
         $signingInput = "$header.$payload";
         if (!openssl_sign($signingInput, $signature, JAAS_PRIVATE_KEY, OPENSSL_ALGO_SHA256)) {
             Response(500, false, 'JWT signing failed — check JAAS_PRIVATE_KEY in config/jaas.php');
@@ -136,6 +138,7 @@ class MeetingController {
     }
 
     private function b64url(string $data): string {
+        //replaces + with - and / with _ to make url safe and no trailing = signs
         return rtrim(strtr(base64_encode($data), '+/', '-_'), '=');
     }
 
