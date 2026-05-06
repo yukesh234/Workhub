@@ -651,6 +651,11 @@ async function doDeleteTask(taskId) {
     } catch (err) { showToast(err.message, 'error'); }
 }
 
+function closeTaskDetail(){
+     document.getElementById('task-detail-backdrop').classList.remove('open');
+     currentTask = null;
+}
+
 // ── ESC closes panel ──────────────────────────────────────────────────
 document.addEventListener('keydown', e => {
     if (e.key === 'Escape') {
@@ -659,9 +664,9 @@ document.addEventListener('keydown', e => {
     }
 });
 
-// ══════════════════════════════════════════════════════════════════════
-// ── Project Files Panel ───────────────────────────────────────────────
-// ══════════════════════════════════════════════════════════════════════
+
+// ── Project Files Panel 
+
 
 async function loadProjectFiles() {
     const wrap = document.getElementById('project-files-list');

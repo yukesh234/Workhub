@@ -1,4 +1,5 @@
-<?php 
+<?php
+
 require_once __DIR__ . '/Database.php';
 
 class Admin {
@@ -7,177 +8,134 @@ class Admin {
 
     public function __construct() {
         $this->db = Database::getInstance()->getConnection();
-        
-        // Only check table once per request
         if (!self::$tableChecked) {
             $this->createAdminTable();
             self::$tableChecked = true;
         }
     }
 
-    public function getAdminByEmail($email) {
+    private function createAdminTable(): void {
+        // PostgreSQL: SERIAL for auto-increment, no ENGINE/CHARSET clause
+        $sql = "
+        CREATE TABLE IF NOT EXISTS admin (
+            id             SERIAL PRIMARY KEY,
+            email          VARCHAR(255) NOT NULL UNIQUE,
+            password       VARCHAR(255) NOT NULL,
+            isverified     BOOLEAN DEFAULT FALSE,
+            otp            VARCHAR(6)   DEFAULT NULL,
+            otp_expires_at TIMESTAMPTZ  DEFAULT NULL,
+            created_at     TIMESTAMPTZ  DEFAULT CURRENT_TIMESTAMP
+        )";
+        try {
+            $this->db->exec($sql);
+        } catch (PDOException $e) {
+            error_log("Error creating admin table: " . $e->getMessage());
+        }
+    }
+
+    public function getAdminByEmail(string $email): array|false {
         $stmt = $this->db->prepare("SELECT * FROM admin WHERE email = ?");
         $stmt->execute([$email]);
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }
 
-    public function createAdmin($email, $password) {
+    public function createAdmin(string $email, string $password): array {
         if (empty($email) || empty($password)) {
-            return [
-                'success' => false,
-                'message' => 'Email and password cannot be empty'
-            ];
+            return ['success' => false, 'message' => 'Email and password cannot be empty'];
         }
-
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            return [
-                'success' => false,
-                'message' => 'Invalid email format'
-            ];
+            return ['success' => false, 'message' => 'Invalid email format'];
         }
-
         if ($this->getAdminByEmail($email)) {
-            return [
-                'success' => false,
-                'message' => 'Email already exists'
-            ];
+            return ['success' => false, 'message' => 'Email already exists'];
         }
 
         $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
-
         try {
-            $stmt = $this->db->prepare("INSERT INTO admin (email, password) VALUES (?, ?)");
+            // RETURNING id is the PostgreSQL way to retrieve the new PK
+            $stmt = $this->db->prepare("
+                INSERT INTO admin (email, password) VALUES (?, ?)
+                RETURNING id
+            ");
             $stmt->execute([$email, $hashedPassword]);
-            
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
             return [
                 'success' => true,
                 'message' => 'Registration successful',
-                'id' => $this->db->lastInsertId()
+                'id'      => $row['id'],
             ];
         } catch (PDOException $e) {
-            return [
-                'success' => false,
-                'message' => 'Database error: ' . $e->getMessage()
-            ];
+            return ['success' => false, 'message' => 'Database error: ' . $e->getMessage()];
         }
     }
 
-    public function storeOTP($email, $otp) {
+    public function storeOTP(string $email, string $otp): bool {
         try {
-            $expiresAt = date('Y-m-d H:i:s', strtotime('+10 minutes'));
-            $stmt = $this->db->prepare("UPDATE admin SET otp = ?, otp_expires_at = ? WHERE email = ?");
-            $stmt->execute([$otp, $expiresAt, $email]);
+            // PostgreSQL interval syntax
+            $stmt = $this->db->prepare("
+                UPDATE admin
+                SET otp = ?, otp_expires_at = NOW() + INTERVAL '10 minutes'
+                WHERE email = ?
+            ");
+            $stmt->execute([$otp, $email]);
             return $stmt->rowCount() > 0;
         } catch (PDOException $e) {
             return false;
         }
     }
 
-    public function verifyOTP($email, $otp) {
+    public function verifyOTP(string $email, string $otp): array {
         try {
             $stmt = $this->db->prepare("SELECT otp, otp_expires_at FROM admin WHERE email = ?");
             $stmt->execute([$email]);
             $admin = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if (!$admin) {
-                return [
-                    'success' => false,
-                    'message' => 'Admin not found'
-                ];
+                return ['success' => false, 'message' => 'Admin not found'];
             }
-
             if (strtotime($admin['otp_expires_at']) < time()) {
-                return [
-                    'success' => false,
-                    'message' => 'OTP has expired'
-                ];
+                return ['success' => false, 'message' => 'OTP has expired'];
             }
-
             if ($admin['otp'] !== $otp) {
-                return [
-                    'success' => false,
-                    'message' => 'Invalid OTP'
-                ];
+                return ['success' => false, 'message' => 'Invalid OTP'];
             }
 
-            $stmt = $this->db->prepare("UPDATE admin SET isverified = 1, otp = NULL, otp_expires_at = NULL WHERE email = ?");
-            $stmt->execute([$email]);
+            $this->db->prepare("
+                UPDATE admin SET isverified = TRUE, otp = NULL, otp_expires_at = NULL
+                WHERE email = ?
+            ")->execute([$email]);
 
-            return [
-                'success' => true,
-                'message' => 'Admin verified successfully'
-            ];
+            return ['success' => true, 'message' => 'Admin verified successfully'];
         } catch (PDOException $e) {
-            return [
-                'success' => false,
-                'message' => 'Database error: ' . $e->getMessage()
-            ];
+            return ['success' => false, 'message' => 'Database error: ' . $e->getMessage()];
         }
     }
 
-    private function createAdminTable() {
-        $sql = "CREATE TABLE IF NOT EXISTS admin (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            email VARCHAR(255) NOT NULL UNIQUE,
-            password VARCHAR(255) NOT NULL,
-            isverified BOOLEAN DEFAULT FALSE,
-            otp VARCHAR(6) DEFAULT NULL,
-            otp_expires_at DATETIME DEFAULT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP            
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
-        
-        try {
-            $this->db->exec($sql);  
-        } catch (PDOException $e) {
-            error_log("Error creating admin table: " . $e->getMessage());
-        }
-    }
-
-    public function handleLogin($email, $password) {
+    public function handleLogin(string $email, string $password): array {
         if (empty($email) || empty($password)) {
-            return [
-                'success' => false,
-                'message' => 'Email and password are required'
-            ];
+            return ['success' => false, 'message' => 'Email and password are required'];
         }
 
         $admin = $this->getAdminByEmail($email);
-        
         if (!$admin) {
-            return [
-                'success' => false,
-                'message' => 'Invalid credentials'
-            ];
+            return ['success' => false, 'message' => 'Invalid credentials'];
         }
-
         if (!password_verify($password, $admin['password'])) {
-            return [
-                'success' => false,
-                'message' => 'Invalid credentials'
-            ];
+            return ['success' => false, 'message' => 'Invalid credentials'];
         }
-
         if (!$admin['isverified']) {
             return [
-                'success' => false,
-                'message' => 'Please verify your email first',
-                'redirect' => '/verify?email=' . urlencode($email)
+                'success'  => false,
+                'message'  => 'Please verify your email first',
+                'redirect' => '/verify?email=' . urlencode($email),
             ];
         }
 
-        return [
-            'success' => true,
-            'message' => 'Login successful',
-            'admin' => $admin
-        ];
+        return ['success' => true, 'message' => 'Login successful', 'admin' => $admin];
     }
-// ───────────────────────────────────────────────────────────────────
 
-    // ── Change admin password ─────────────────────────────────────────
-    // Verifies the current password first, then hashes and saves the new one.
     public function changeAdminPassword(int $admin_id, string $currentPw, string $newPw): array {
         try {
-            // Fetch current hash
             $stmt = $this->db->prepare("SELECT password FROM admin WHERE id = ?");
             $stmt->execute([$admin_id]);
             $row = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -185,14 +143,12 @@ class Admin {
             if (!$row) {
                 return ['success' => false, 'message' => 'Admin not found'];
             }
-
             if (!password_verify($currentPw, $row['password'])) {
                 return ['success' => false, 'message' => 'Current password is incorrect'];
             }
 
             $hash = password_hash($newPw, PASSWORD_DEFAULT);
-            $stmt = $this->db->prepare("UPDATE admin SET password = ? WHERE id = ?");
-            $stmt->execute([$hash, $admin_id]);
+            $this->db->prepare("UPDATE admin SET password = ? WHERE id = ?")->execute([$hash, $admin_id]);
 
             return ['success' => true, 'message' => 'Password updated'];
         } catch (PDOException $e) {
@@ -201,23 +157,27 @@ class Admin {
     }
 
     public function verifyOTPForReset(string $email, string $otp): array {
-    try {
-        $stmt = $this->db->prepare("SELECT otp, otp_expires_at FROM admin WHERE email = ?");
-        $stmt->execute([$email]);
-        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        try {
+            $stmt = $this->db->prepare("SELECT otp, otp_expires_at FROM admin WHERE email = ?");
+            $stmt->execute([$email]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        if (!$row)          return ['success' => false, 'message' => 'Admin not found'];
-        if (!$row['otp'])   return ['success' => false, 'message' => 'No OTP requested'];
-        if (strtotime($row['otp_expires_at']) < time()) return ['success' => false, 'message' => 'OTP has expired'];
-        if ($row['otp'] !== $otp) return ['success' => false, 'message' => 'Invalid OTP'];
+            if (!$row)         return ['success' => false, 'message' => 'Admin not found'];
+            if (!$row['otp'])  return ['success' => false, 'message' => 'No OTP requested'];
+            if (strtotime($row['otp_expires_at']) < time()) {
+                return ['success' => false, 'message' => 'OTP has expired'];
+            }
+            if ($row['otp'] !== $otp) {
+                return ['success' => false, 'message' => 'Invalid OTP'];
+            }
 
-        // Clear so it can't be reused
-        $this->db->prepare("UPDATE admin SET otp = NULL, otp_expires_at = NULL WHERE email = ?")
-            ->execute([$email]);
+            $this->db->prepare("
+                UPDATE admin SET otp = NULL, otp_expires_at = NULL WHERE email = ?
+            ")->execute([$email]);
 
-        return ['success' => true];
-    } catch (PDOException $e) {
-        return ['success' => false, 'message' => $e->getMessage()];
+            return ['success' => true];
+        } catch (PDOException $e) {
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
     }
-}
 }

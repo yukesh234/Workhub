@@ -9,20 +9,20 @@ class AnalyticsModel {
         $this->db = Database::getInstance()->getConnection();
     }
 
-    // ── Admin org-wide analytics
+    // ── Admin org-wide analytics 
 
     public function getOrgSummary(int $org_id): array {
         $stmt = $this->db->prepare("
             SELECT
-                (SELECT COUNT(*) FROM user    WHERE organization_id=:o)  AS total_members,
-                (SELECT COUNT(*) FROM project WHERE organization_id=:o2) AS total_projects,
-                (SELECT COUNT(*) FROM project WHERE organization_id=:o3 AND status='active') AS active_projects,
-                (SELECT COUNT(*) FROM project WHERE organization_id=:o4 AND status='completed') AS completed_projects,
-                (SELECT COUNT(t.task_id) FROM task t JOIN project p ON p.project_id=t.project_id WHERE p.organization_id=:o5) AS total_tasks,
-                (SELECT COUNT(t.task_id) FROM task t JOIN project p ON p.project_id=t.project_id WHERE p.organization_id=:o6 AND t.status='completed') AS completed_tasks,
-                (SELECT COUNT(t.task_id) FROM task t JOIN project p ON p.project_id=t.project_id WHERE p.organization_id=:o7 AND t.due_date < CURDATE() AND t.status != 'completed') AS overdue_tasks
+                (SELECT COUNT(*) FROM \"user\"   WHERE organization_id = $1) AS total_members,
+                (SELECT COUNT(*) FROM project    WHERE organization_id = $2) AS total_projects,
+                (SELECT COUNT(*) FROM project    WHERE organization_id = $3 AND status = 'active')    AS active_projects,
+                (SELECT COUNT(*) FROM project    WHERE organization_id = $4 AND status = 'completed') AS completed_projects,
+                (SELECT COUNT(t.task_id) FROM task t JOIN project p ON p.project_id = t.project_id WHERE p.organization_id = $5) AS total_tasks,
+                (SELECT COUNT(t.task_id) FROM task t JOIN project p ON p.project_id = t.project_id WHERE p.organization_id = $6 AND t.status = 'completed') AS completed_tasks,
+                (SELECT COUNT(t.task_id) FROM task t JOIN project p ON p.project_id = t.project_id WHERE p.organization_id = $7 AND t.due_date < CURRENT_DATE AND t.status != 'completed') AS overdue_tasks
         ");
-        $stmt->execute([':o'=>$org_id,':o2'=>$org_id,':o3'=>$org_id,':o4'=>$org_id,':o5'=>$org_id,':o6'=>$org_id,':o7'=>$org_id]);
+        $stmt->execute(array_fill(0, 7, $org_id));
         return $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
     }
 
@@ -32,12 +32,12 @@ class AnalyticsModel {
             SELECT DATE(t.created_at) AS day, COUNT(*) AS count
             FROM task t
             JOIN project p ON p.project_id = t.project_id
-            WHERE p.organization_id = :org_id
-              AND t.created_at >= DATE_SUB(CURDATE(), INTERVAL :days DAY)
+            WHERE p.organization_id = $1
+              AND t.created_at >= CURRENT_DATE - INTERVAL '1 day' * $2
             GROUP BY DATE(t.created_at)
             ORDER BY day ASC
         ");
-        $stmt->execute([':org_id' => $org_id, ':days' => $days]);
+        $stmt->execute([$org_id, $days]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
@@ -45,11 +45,12 @@ class AnalyticsModel {
     public function getTaskStatusBreakdown(int $org_id): array {
         $stmt = $this->db->prepare("
             SELECT t.status, COUNT(*) AS count
-            FROM task t JOIN project p ON p.project_id=t.project_id
-            WHERE p.organization_id = :org_id
+            FROM task t
+            JOIN project p ON p.project_id = t.project_id
+            WHERE p.organization_id = $1
             GROUP BY t.status
         ");
-        $stmt->execute([':org_id' => $org_id]);
+        $stmt->execute([$org_id]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
@@ -57,33 +58,43 @@ class AnalyticsModel {
     public function getTaskPriorityBreakdown(int $org_id): array {
         $stmt = $this->db->prepare("
             SELECT t.priority, COUNT(*) AS count
-            FROM task t JOIN project p ON p.project_id=t.project_id
-            WHERE p.organization_id = :org_id
+            FROM task t
+            JOIN project p ON p.project_id = t.project_id
+            WHERE p.organization_id = $1
             GROUP BY t.priority
-            ORDER BY FIELD(t.priority,'critical','high','medium','low')
+            ORDER BY CASE t.priority
+                WHEN 'critical' THEN 1
+                WHEN 'high'     THEN 2
+                WHEN 'medium'   THEN 3
+                WHEN 'low'      THEN 4
+                ELSE 5
+            END
         ");
-        $stmt->execute([':org_id' => $org_id]);
+        $stmt->execute([$org_id]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
     /** Top members by tasks completed */
     public function getTopPerformers(int $org_id, int $limit = 5): array {
         $stmt = $this->db->prepare("
-            SELECT u.user_id, u.name, u.userProfile,
-                   COUNT(t.task_id)                                  AS total_tasks,
-                   SUM(t.status='completed')                         AS done,
-                   ROUND(SUM(t.status='completed')/COUNT(t.task_id)*100) AS pct
-            FROM user u
-            JOIN task t ON t.assigned_to = u.user_id
-            JOIN project p ON p.project_id = t.project_id
-            WHERE u.organization_id = :org_id
-            GROUP BY u.user_id
-            HAVING total_tasks > 0
+            SELECT u.user_id, u.name, u.\"userProfile\",
+                   COUNT(t.task_id)                                                        AS total_tasks,
+                   SUM(CASE WHEN t.status = 'completed' THEN 1 ELSE 0 END)                AS done,
+                   ROUND(
+                       SUM(CASE WHEN t.status = 'completed' THEN 1 ELSE 0 END)::numeric
+                       / COUNT(t.task_id) * 100
+                   )                                                                       AS pct
+            FROM \"user\" u
+            JOIN task t    ON t.assigned_to  = u.user_id
+            JOIN project p ON p.project_id   = t.project_id
+            WHERE u.organization_id = $1
+            GROUP BY u.user_id, u.name, u.\"userProfile\"
+            HAVING COUNT(t.task_id) > 0
             ORDER BY done DESC
-            LIMIT :lim
+            LIMIT $2
         ");
-        $stmt->bindValue(':org_id', $org_id, PDO::PARAM_INT);
-        $stmt->bindValue(':lim',    $limit,  PDO::PARAM_INT);
+        $stmt->bindValue(1, $org_id, PDO::PARAM_INT);
+        $stmt->bindValue(2, $limit,  PDO::PARAM_INT);
         $stmt->execute();
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
@@ -92,18 +103,22 @@ class AnalyticsModel {
     public function getProjectProgress(int $org_id): array {
         $stmt = $this->db->prepare("
             SELECT p.project_id, p.name, p.status,
-                   COUNT(t.task_id)              AS total,
-                   SUM(t.status='completed')     AS done,
-                   CASE WHEN COUNT(t.task_id)>0
-                        THEN ROUND(SUM(t.status='completed')/COUNT(t.task_id)*100)
-                        ELSE 0 END               AS pct
+                   COUNT(t.task_id)                                             AS total,
+                   SUM(CASE WHEN t.status = 'completed' THEN 1 ELSE 0 END)     AS done,
+                   CASE WHEN COUNT(t.task_id) > 0
+                        THEN ROUND(
+                            SUM(CASE WHEN t.status = 'completed' THEN 1 ELSE 0 END)::numeric
+                            / COUNT(t.task_id) * 100
+                        )
+                        ELSE 0
+                   END AS pct
             FROM project p
             LEFT JOIN task t ON t.project_id = p.project_id
-            WHERE p.organization_id = :org_id
-            GROUP BY p.project_id
+            WHERE p.organization_id = $1
+            GROUP BY p.project_id, p.name, p.status
             ORDER BY pct DESC
         ");
-        $stmt->execute([':org_id' => $org_id]);
+        $stmt->execute([$org_id]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
@@ -112,38 +127,38 @@ class AnalyticsModel {
     /** Full profile + summary for one member */
     public function getMemberProfile(int $user_id, int $org_id): array {
         $stmt = $this->db->prepare("
-            SELECT u.user_id, u.name, u.email, u.role, u.userProfile, u.created_at,
-                COUNT(t.task_id)                                          AS total_tasks,
-                SUM(t.status = 'completed')                               AS completed,
-                SUM(t.status = 'in_progress')                             AS in_progress,
-                SUM(t.status = 'in_review')                               AS in_review,
-                SUM(t.status = 'pending')                                 AS pending,
-                SUM(t.due_date < CURDATE() AND t.status != 'completed')   AS overdue,
-                SUM(t.priority = 'critical')                              AS critical,
-                SUM(t.priority = 'high')                                  AS high_p,
-                SUM(t.priority = 'medium')                                AS medium_p,
-                SUM(t.priority = 'low')                                   AS low_p
-            FROM user u
+            SELECT u.user_id, u.name, u.email, u.role, u.\"userProfile\", u.created_at,
+                COUNT(t.task_id)                                                                    AS total_tasks,
+                SUM(CASE WHEN t.status = 'completed'   THEN 1 ELSE 0 END)                          AS completed,
+                SUM(CASE WHEN t.status = 'in_progress' THEN 1 ELSE 0 END)                          AS in_progress,
+                SUM(CASE WHEN t.status = 'in_review'   THEN 1 ELSE 0 END)                          AS in_review,
+                SUM(CASE WHEN t.status = 'pending'     THEN 1 ELSE 0 END)                          AS pending,
+                SUM(CASE WHEN t.due_date < CURRENT_DATE AND t.status != 'completed' THEN 1 ELSE 0 END) AS overdue,
+                SUM(CASE WHEN t.priority = 'critical'  THEN 1 ELSE 0 END)                          AS critical,
+                SUM(CASE WHEN t.priority = 'high'      THEN 1 ELSE 0 END)                          AS high_p,
+                SUM(CASE WHEN t.priority = 'medium'    THEN 1 ELSE 0 END)                          AS medium_p,
+                SUM(CASE WHEN t.priority = 'low'       THEN 1 ELSE 0 END)                          AS low_p
+            FROM \"user\" u
             LEFT JOIN task t ON t.assigned_to = u.user_id
-            WHERE u.user_id = :uid AND u.organization_id = :org
-            GROUP BY u.user_id
+            WHERE u.user_id = $1 AND u.organization_id = $2
+            GROUP BY u.user_id, u.name, u.email, u.role, u.\"userProfile\", u.created_at
         ");
-        $stmt->execute([':uid' => $user_id, ':org' => $org_id]);
+        $stmt->execute([$user_id, $org_id]);
         return $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
     }
 
-    /** Tasks completed per day for this member (last 30 days) */
+    /** Tasks completed per day for this member (last N days) */
     public function getMemberCompletionTrend(int $user_id, int $days = 30): array {
         $stmt = $this->db->prepare("
             SELECT DATE(updated_at) AS day, COUNT(*) AS count
             FROM task
-            WHERE assigned_to = :uid
+            WHERE assigned_to = $1
               AND status = 'completed'
-              AND updated_at >= DATE_SUB(CURDATE(), INTERVAL :days DAY)
+              AND updated_at >= CURRENT_DATE - INTERVAL '1 day' * $2
             GROUP BY DATE(updated_at)
             ORDER BY day ASC
         ");
-        $stmt->execute([':uid' => $user_id, ':days' => $days]);
+        $stmt->execute([$user_id, $days]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
@@ -155,12 +170,25 @@ class AnalyticsModel {
                    p.name AS project_name, p.project_id
             FROM task t
             JOIN project p ON p.project_id = t.project_id
-            WHERE t.assigned_to = :uid AND p.organization_id = :org
-            ORDER BY FIELD(t.status,'in_progress','in_review','pending','completed'),
-                     FIELD(t.priority,'critical','high','medium','low'),
-                     t.due_date ASC
+            WHERE t.assigned_to = $1 AND p.organization_id = $2
+            ORDER BY
+                CASE t.status
+                    WHEN 'in_progress' THEN 1
+                    WHEN 'in_review'   THEN 2
+                    WHEN 'pending'     THEN 3
+                    WHEN 'completed'   THEN 4
+                    ELSE 5
+                END,
+                CASE t.priority
+                    WHEN 'critical' THEN 1
+                    WHEN 'high'     THEN 2
+                    WHEN 'medium'   THEN 3
+                    WHEN 'low'      THEN 4
+                    ELSE 5
+                END,
+                t.due_date ASC
         ");
-        $stmt->execute([':uid' => $user_id, ':org' => $org_id]);
+        $stmt->execute([$user_id, $org_id]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
@@ -168,16 +196,16 @@ class AnalyticsModel {
     public function getMemberProjects(int $user_id): array {
         $stmt = $this->db->prepare("
             SELECT p.project_id, p.name, p.status, pm.role,
-                   COUNT(t.task_id)            AS total,
-                   SUM(t.status='completed')   AS done
+                   COUNT(t.task_id)                                         AS total,
+                   SUM(CASE WHEN t.status = 'completed' THEN 1 ELSE 0 END) AS done
             FROM project_members pm
             JOIN project p ON p.project_id = pm.project_id
-            LEFT JOIN task t ON t.project_id = p.project_id AND t.assigned_to = :uid
-            WHERE pm.user_id = :uid2
-            GROUP BY p.project_id, pm.role
+            LEFT JOIN task t ON t.project_id = p.project_id AND t.assigned_to = $1
+            WHERE pm.user_id = $2
+            GROUP BY p.project_id, p.name, p.status, pm.role, p.created_at
             ORDER BY p.created_at DESC
         ");
-        $stmt->execute([':uid' => $user_id, ':uid2' => $user_id]);
+        $stmt->execute([$user_id, $user_id]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
@@ -186,53 +214,54 @@ class AnalyticsModel {
     public function getProjectSummary(int $project_id): array {
         $stmt = $this->db->prepare("
             SELECT
-                COUNT(*)                          AS total,
-                SUM(status='completed')           AS done,
-                SUM(status='in_progress')         AS in_progress,
-                SUM(status='in_review')           AS in_review,
-                SUM(status='pending')             AS pending,
-                SUM(due_date < CURDATE() AND status != 'completed') AS overdue,
-                SUM(priority='critical')          AS critical,
-                SUM(priority='high')              AS high_p,
-                SUM(priority='medium')            AS medium_p,
-                SUM(priority='low')               AS low_p
-            FROM task WHERE project_id = :pid
+                COUNT(*)                                                                        AS total,
+                SUM(CASE WHEN status = 'completed'   THEN 1 ELSE 0 END)                        AS done,
+                SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END)                        AS in_progress,
+                SUM(CASE WHEN status = 'in_review'   THEN 1 ELSE 0 END)                        AS in_review,
+                SUM(CASE WHEN status = 'pending'     THEN 1 ELSE 0 END)                        AS pending,
+                SUM(CASE WHEN due_date < CURRENT_DATE AND status != 'completed' THEN 1 ELSE 0 END) AS overdue,
+                SUM(CASE WHEN priority = 'critical'  THEN 1 ELSE 0 END)                        AS critical,
+                SUM(CASE WHEN priority = 'high'      THEN 1 ELSE 0 END)                        AS high_p,
+                SUM(CASE WHEN priority = 'medium'    THEN 1 ELSE 0 END)                        AS medium_p,
+                SUM(CASE WHEN priority = 'low'       THEN 1 ELSE 0 END)                        AS low_p
+            FROM task
+            WHERE project_id = $1
         ");
-        $stmt->execute([':pid' => $project_id]);
+        $stmt->execute([$project_id]);
         return $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
     }
 
-    /** Tasks completed per day for a project (last 30 days) */
+    /** Tasks completed per day for a project (last N days) */
     public function getProjectCompletionTrend(int $project_id, int $days = 30): array {
         $stmt = $this->db->prepare("
             SELECT DATE(updated_at) AS day, COUNT(*) AS count
             FROM task
-            WHERE project_id = :pid
+            WHERE project_id = $1
               AND status = 'completed'
-              AND updated_at >= DATE_SUB(CURDATE(), INTERVAL :days DAY)
+              AND updated_at >= CURRENT_DATE - INTERVAL '1 day' * $2
             GROUP BY DATE(updated_at)
             ORDER BY day ASC
         ");
-        $stmt->execute([':pid' => $project_id, ':days' => $days]);
+        $stmt->execute([$project_id, $days]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
     /** Per-member stats within a project */
     public function getMemberStats(int $project_id): array {
         $stmt = $this->db->prepare("
-            SELECT u.user_id, u.name, u.userProfile, pm.role,
-                   COUNT(t.task_id)              AS total,
-                   SUM(t.status='completed')     AS done,
-                   SUM(t.status='in_progress')   AS in_progress,
-                   SUM(t.due_date < CURDATE() AND t.status != 'completed') AS overdue
+            SELECT u.user_id, u.name, u.\"userProfile\", pm.role,
+                   COUNT(t.task_id)                                                            AS total,
+                   SUM(CASE WHEN t.status = 'completed'   THEN 1 ELSE 0 END)                  AS done,
+                   SUM(CASE WHEN t.status = 'in_progress' THEN 1 ELSE 0 END)                  AS in_progress,
+                   SUM(CASE WHEN t.due_date < CURRENT_DATE AND t.status != 'completed' THEN 1 ELSE 0 END) AS overdue
             FROM project_members pm
-            JOIN user u ON u.user_id = pm.user_id
+            JOIN \"user\" u ON u.user_id = pm.user_id
             LEFT JOIN task t ON t.assigned_to = u.user_id AND t.project_id = pm.project_id
-            WHERE pm.project_id = :pid
-            GROUP BY u.user_id, pm.role
+            WHERE pm.project_id = $1
+            GROUP BY u.user_id, u.name, u.\"userProfile\", pm.role
             ORDER BY done DESC
         ");
-        $stmt->execute([':pid' => $project_id]);
+        $stmt->execute([$project_id]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 }

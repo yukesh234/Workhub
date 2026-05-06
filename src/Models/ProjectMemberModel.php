@@ -19,55 +19,64 @@ class ProjectMemberModel {
 
     private function createTable(): void
     {
-        $sql = "
-        CREATE TABLE IF NOT EXISTS project_members (
-            project_id INT NOT NULL,
-            user_id INT NOT NULL,
-            role ENUM('manager','member') DEFAULT 'member',
-            added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        $this->db->exec("
+            CREATE TABLE IF NOT EXISTS project_members (
+                project_id INT NOT NULL,
+                user_id    INT NOT NULL,
+                role       VARCHAR(10) NOT NULL DEFAULT 'member'
+                               CHECK (role IN ('manager','member')),
+                added_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
-            PRIMARY KEY (project_id, user_id),
+                PRIMARY KEY (project_id, user_id),
 
-            FOREIGN KEY (project_id)
-                REFERENCES project(project_id)
-                ON DELETE CASCADE,
+                FOREIGN KEY (project_id)
+                    REFERENCES project(project_id)
+                    ON DELETE CASCADE,
 
-            FOREIGN KEY (user_id)
-                REFERENCES user(user_id)
-                ON DELETE CASCADE
-        ) ENGINE=InnoDB
-        DEFAULT CHARSET=utf8mb4
-        COLLATE=utf8mb4_unicode_ci;
-        ";
-
-        try {
-            $this->db->exec($sql);
-        } catch (PDOException $e) {
-            throw new Exception("Error creating project_members table: " . $e->getMessage());
-        }
+                FOREIGN KEY (user_id)
+                    REFERENCES \"user\"(user_id)
+                    ON DELETE CASCADE
+            );
+        ");
     }
 
-    public function addMember(int $project_id, int $user_id, string $role = 'member'): array
+    /**
+     * Add a member to a project, inheriting the role they were created with.
+     * Pass an explicit $role to override (e.g. when the admin wants to promote).
+     */
+    public function addMember(int $project_id, int $user_id, string $role = ''): array
     {
         try {
+            // If no role supplied, inherit from the user table
+            if ($role === '') {
+                $stmt = $this->db->prepare(
+                    "SELECT role FROM \"user\" WHERE user_id = ?"
+                );
+                $stmt->execute([$user_id]);
+                $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+                if (!$row) {
+                    return ['success' => false, 'message' => 'User not found'];
+                }
+                $role = $row['role'];
+            }
+
             $stmt = $this->db->prepare("
                 INSERT INTO project_members (project_id, user_id, role)
                 VALUES (:project_id, :user_id, :role)
+                ON CONFLICT (project_id, user_id) DO NOTHING
             ");
 
             $stmt->execute([
                 ':project_id' => $project_id,
                 ':user_id'    => $user_id,
-                ':role'       => $role
+                ':role'       => $role,
             ]);
 
-            return [
-                'success' => true,
-                'message' => 'Member added successfully'
-            ];
+            return ['success' => true, 'message' => 'Member added successfully'];
 
         } catch (PDOException $e) {
-            throw new Exception("Error adding member: " . $e->getMessage());
+            return ['success' => false, 'message' => 'Error adding member: ' . $e->getMessage()];
         }
     }
 
@@ -77,35 +86,30 @@ class ProjectMemberModel {
             $stmt = $this->db->prepare("
                 DELETE FROM project_members
                 WHERE project_id = :project_id
-                AND user_id = :user_id
+                  AND user_id    = :user_id
             ");
 
             $stmt->execute([
                 ':project_id' => $project_id,
-                ':user_id'    => $user_id
+                ':user_id'    => $user_id,
             ]);
 
-            return [
-                'success' => true,
-                'message' => 'Member removed successfully'
-            ];
+            return ['success' => true, 'message' => 'Member removed successfully'];
 
         } catch (PDOException $e) {
-            throw new Exception("Error removing member: " . $e->getMessage());
+            return ['success' => false, 'message' => 'Error removing member: ' . $e->getMessage()];
         }
     }
 
     public function getMembers(int $project_id): array
     {
         $stmt = $this->db->prepare("
-            SELECT u.user_id, u.name, u.email, u.userProfile, p.role, p.added_at
-            FROM project_members p
-            JOIN user u ON u.user_id = p.user_id
-            WHERE p.project_id = ?
+            SELECT u.user_id, u.name, u.email, u.\"userProfile\", pm.role, pm.added_at
+            FROM project_members pm
+            JOIN \"user\" u ON u.user_id = pm.user_id
+            WHERE pm.project_id = ?
         ");
-
         $stmt->execute([$project_id]);
-
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
@@ -115,12 +119,10 @@ class ProjectMemberModel {
             SELECT 1
             FROM project_members
             WHERE project_id = ?
-            AND user_id = ?
-            AND role = 'manager'
+              AND user_id    = ?
+              AND role       = 'manager'
         ");
-
         $stmt->execute([$project_id, $user_id]);
-
         return (bool) $stmt->fetch();
     }
 
@@ -130,11 +132,9 @@ class ProjectMemberModel {
             SELECT 1
             FROM project_members
             WHERE project_id = ?
-            AND user_id = ?
+              AND user_id    = ?
         ");
-
         $stmt->execute([$project_id, $user_id]);
-
         return (bool) $stmt->fetch();
     }
 
@@ -145,22 +145,19 @@ class ProjectMemberModel {
                 UPDATE project_members
                 SET role = :role
                 WHERE project_id = :project_id
-                AND user_id = :user_id
+                  AND user_id    = :user_id
             ");
 
             $stmt->execute([
                 ':role'       => $newRole,
                 ':project_id' => $project_id,
-                ':user_id'    => $user_id
+                ':user_id'    => $user_id,
             ]);
 
-            return [
-                'success' => true,
-                'message' => 'Role updated successfully'
-            ];
+            return ['success' => true, 'message' => 'Role updated successfully'];
 
         } catch (PDOException $e) {
-            throw new Exception("Error updating role: " . $e->getMessage());
+            return ['success' => false, 'message' => 'Error updating role: ' . $e->getMessage()];
         }
     }
 }

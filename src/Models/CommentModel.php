@@ -17,15 +17,15 @@ class CommentModel {
     private function createTable(): void {
         $sql = "
         CREATE TABLE IF NOT EXISTS task_comment (
-            comment_id   INT AUTO_INCREMENT PRIMARY KEY,
-            task_id      INT NOT NULL,
-            author_id    INT NOT NULL,
-            author_type  ENUM('admin','user') NOT NULL DEFAULT 'admin',
-            body         TEXT NOT NULL,
-            created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            comment_id  SERIAL PRIMARY KEY,
+            task_id     INT NOT NULL,
+            author_id   INT NOT NULL,
+            author_type VARCHAR(10) NOT NULL DEFAULT 'admin'
+                            CHECK (author_type IN ('admin','user')),
+            body        TEXT NOT NULL,
+            created_at  TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (task_id) REFERENCES task(task_id) ON DELETE CASCADE
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-        ";
+        )";
         try {
             $this->db->exec($sql);
         } catch (PDOException $e) {
@@ -33,12 +33,12 @@ class CommentModel {
         }
     }
 
-    // Add a comment
     public function addComment(int $task_id, int $author_id, string $author_type, string $body): array {
         try {
             $stmt = $this->db->prepare("
                 INSERT INTO task_comment (task_id, author_id, author_type, body)
                 VALUES (:task_id, :author_id, :author_type, :body)
+                RETURNING comment_id
             ");
             $stmt->execute([
                 ':task_id'     => $task_id,
@@ -46,16 +46,20 @@ class CommentModel {
                 ':author_type' => $author_type,
                 ':body'        => $body,
             ]);
-            return ['success' => true, 'comment_id' => (int) $this->db->lastInsertId()];
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            return ['success' => true, 'comment_id' => (int) $row['comment_id']];
         } catch (PDOException $e) {
             return ['success' => false, 'message' => $e->getMessage()];
         }
     }
 
-    // Get all comments for a task, with author name joined
+    /**
+     * Get all comments for a task with the author name joined.
+     * PostgreSQL: no backtick quoting; use standard double-quotes if needed.
+     * COALESCE picks the admin email when author_type = 'admin', otherwise the user's name.
+     */
     public function getComments(int $task_id): array {
         try {
-            // Union admin + user tables so we get the author name regardless of type
             $stmt = $this->db->prepare("
                 SELECT
                     c.comment_id,
@@ -65,10 +69,10 @@ class CommentModel {
                     c.body,
                     c.created_at,
                     COALESCE(a.email, u.name) AS author_name,
-                    u.userProfile             AS author_avatar
+                    u.userprofile             AS author_avatar
                 FROM task_comment c
-                LEFT JOIN admin a ON c.author_type = 'admin' AND a.id     = c.author_id
-                LEFT JOIN user  u ON c.author_type = 'user'  AND u.user_id = c.author_id
+                LEFT JOIN admin a ON c.author_type = 'admin' AND a.id      = c.author_id
+                LEFT JOIN \"user\" u ON c.author_type = 'user'  AND u.user_id = c.author_id
                 WHERE c.task_id = :task_id
                 ORDER BY c.created_at ASC
             ");
@@ -79,7 +83,7 @@ class CommentModel {
         }
     }
 
-    // Delete a comment — caller must verify ownership
+    /** Delete a comment — caller must verify ownership */
     public function deleteComment(int $comment_id): array {
         try {
             $stmt = $this->db->prepare("DELETE FROM task_comment WHERE comment_id = ?");
@@ -90,7 +94,7 @@ class CommentModel {
         }
     }
 
-    // Get single comment (for ownership check)
+    /** Get single comment (for ownership check) */
     public function getComment(int $comment_id): array|false {
         try {
             $stmt = $this->db->prepare("SELECT * FROM task_comment WHERE comment_id = ?");

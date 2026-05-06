@@ -132,7 +132,7 @@ class MeetingController {
         //signinginput = base64 jwt header + jwt payload
         $signingInput = "$header.$payload";
         if (!openssl_sign($signingInput, $signature, JAAS_PRIVATE_KEY, OPENSSL_ALGO_SHA256)) {
-            Response(500, false, 'JWT signing failed — check JAAS_PRIVATE_KEY in config/jaas.php');
+            Response(500, false, 'JWT signing failed check JAAS_PRIVATE_KEY in config/jaas.php');
         }
         return "$header.$payload." . $this->b64url($signature);
     }

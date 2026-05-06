@@ -10,10 +10,10 @@ let activeMembersProjectId = null;
 let pickerProjectId        = null;
 let pickerSelected         = new Set();
 
-// ── Dummy project members (used as fallback if API not ready) ─────────
+// ── Dummy project members (used as fallback if API not ready) 
 const DUMMY_PROJECT_MEMBERS = {};
 
-// ── Boot ─────────────────────────────────────────────────────────────
+// Boot 
 document.addEventListener('DOMContentLoaded', () => {
     loadSidebarOrg();
     loadProjects();
@@ -32,7 +32,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('picker-search')?.addEventListener('input', renderPickerUsers);
 });
 
-// ── Load org users (for the member picker) ────────────────────────────
+// Load org users (for the member picker) 
 async function loadOrgUsers() {
     try {
         const res  = await fetch(BASE + '/api/members', { credentials: 'same-origin' });

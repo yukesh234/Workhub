@@ -35,7 +35,7 @@ function getBaseUrl(): string {
     return rtrim(dirname($_SERVER['SCRIPT_NAME']), '/');
 }
 
-// ── Normalise URI ─────────────────────────────────────────────────────
+// ── Normalise URI
 $requestUri = strtok($_SERVER['REQUEST_URI'], '?');
 $basePath   = rtrim(dirname($_SERVER['SCRIPT_NAME']), '/');
 
@@ -46,7 +46,7 @@ if (empty($requestUri) || $requestUri[0] !== '/') {
     $requestUri = '/' . $requestUri;
 }
 
-// ── Controllers ───────────────────────────────────────────────────────
+// ── Controllers 
 $adminController         = new AdminController();
 $projectController       = new ProjectController();
 $projectMemberController = new ProjectMemberController();

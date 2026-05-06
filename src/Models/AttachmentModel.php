@@ -17,7 +17,7 @@ class AttachmentModel {
     private function createTable(): void {
         $sql = "
         CREATE TABLE IF NOT EXISTS task_attachment (
-            attachment_id  INT AUTO_INCREMENT PRIMARY KEY,
+            attachment_id  SERIAL PRIMARY KEY,
             task_id        INT NOT NULL,
             file_name      VARCHAR(255) NOT NULL,
             file_url       VARCHAR(500) NOT NULL,
@@ -25,11 +25,11 @@ class AttachmentModel {
             file_type      VARCHAR(100),
             file_size      INT DEFAULT 0,
             uploaded_by    INT NOT NULL,
-            uploaded_type  ENUM('admin','user') NOT NULL DEFAULT 'admin',
-            created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            uploaded_type  VARCHAR(10) NOT NULL DEFAULT 'admin'
+                               CHECK (uploaded_type IN ('admin','user')),
+            created_at     TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (task_id) REFERENCES task(task_id) ON DELETE CASCADE
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-        ";
+        )";
         try {
             $this->db->exec($sql);
         } catch (PDOException $e) {
@@ -53,6 +53,7 @@ class AttachmentModel {
                     (task_id, file_name, file_url, public_id, file_type, file_size, uploaded_by, uploaded_type)
                 VALUES
                     (:task_id, :file_name, :file_url, :public_id, :file_type, :file_size, :uploaded_by, :uploaded_type)
+                RETURNING attachment_id
             ");
             $stmt->execute([
                 ':task_id'       => $task_id,
@@ -64,7 +65,8 @@ class AttachmentModel {
                 ':uploaded_by'   => $uploaded_by,
                 ':uploaded_type' => $uploaded_type,
             ]);
-            return ['success' => true, 'attachment_id' => (int) $this->db->lastInsertId()];
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            return ['success' => true, 'attachment_id' => (int) $row['attachment_id']];
         } catch (PDOException $e) {
             return ['success' => false, 'message' => $e->getMessage()];
         }
@@ -103,22 +105,23 @@ class AttachmentModel {
             return ['success' => false, 'message' => $e->getMessage()];
         }
     }
+
     public function getProjectFiles(int $project_id): array {
-    try {
-        $stmt = $this->db->prepare("
-            SELECT
-                a.attachment_id, a.file_name, a.file_url, a.file_type,
-                a.file_size, a.created_at, a.public_id,
-                t.task_id, t.title AS task_title
-            FROM task_attachment a
-            JOIN task t ON t.task_id = a.task_id
-            WHERE t.project_id = :project_id
-            ORDER BY a.created_at DESC
-        ");
-        $stmt->execute([':project_id' => $project_id]);
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
-    } catch (PDOException $e) {
-        return [];
+        try {
+            $stmt = $this->db->prepare("
+                SELECT
+                    a.attachment_id, a.file_name, a.file_url, a.file_type,
+                    a.file_size, a.created_at, a.public_id,
+                    t.task_id, t.title AS task_title
+                FROM task_attachment a
+                JOIN task t ON t.task_id = a.task_id
+                WHERE t.project_id = :project_id
+                ORDER BY a.created_at DESC
+            ");
+            $stmt->execute([':project_id' => $project_id]);
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            return [];
+        }
     }
-}
 }
