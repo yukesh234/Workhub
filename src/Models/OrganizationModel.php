@@ -66,11 +66,11 @@ class OrganizationModel {
         ?string $slogan   = null,
         ?string $logoUrl  = null,
         ?string $publicId = null
-    ): array {
+    ): array  {
         try {
             $stmt = $this->db->prepare("
                 INSERT INTO organization (admin_id, name, slogan, organization_logo, logo_public_id)
-                VALUES ($1, $2, $3, $4, $5)
+                VALUES (?, ?, ?, ?, ?)
             ");
             $stmt->execute([$admin_id, $name, $slogan, $logoUrl, $publicId]);
 
@@ -85,7 +85,7 @@ class OrganizationModel {
     }
 
     public function getOrganizationId(int $admin_id): ?int {
-        $stmt = $this->db->prepare("SELECT organization_id FROM organization WHERE admin_id = $1");
+        $stmt = $this->db->prepare("SELECT organization_id FROM organization WHERE admin_id = ?");
         $stmt->execute([$admin_id]);
         $id = $stmt->fetchColumn();
         return $id !== false ? (int) $id : null;
@@ -95,7 +95,7 @@ class OrganizationModel {
         $stmt = $this->db->prepare("
             SELECT organization_id, name, slogan, organization_logo, created_at
             FROM organization
-            WHERE admin_id = $1
+            WHERE admin_id = ?
         ");
         $stmt->execute([$admin_id]);
         return $stmt->fetch(PDO::FETCH_ASSOC);
@@ -105,8 +105,8 @@ class OrganizationModel {
         try {
             $stmt = $this->db->prepare("
                 UPDATE organization
-                SET name = $1, slogan = $2
-                WHERE organization_id = $3
+                SET name = ?, slogan = ?
+                WHERE organization_id = ?       
             ");
             $stmt->execute([$name, $slogan, $org_id]);
             return ['success' => true, 'message' => 'Organization updated'];
@@ -119,9 +119,9 @@ class OrganizationModel {
         try {
             $stmt = $this->db->prepare("
                 UPDATE organization
-                SET organization_logo = $1,
-                    logo_public_id    = $2
-                WHERE organization_id = $3
+                SET organization_logo = ?,
+                    logo_public_id    = ?
+                WHERE organization_id = ?
             ");
             $stmt->execute([$logoUrl, $publicId, $org_id]);
             return ['success' => true, 'message' => 'Logo updated'];
@@ -134,14 +134,14 @@ class OrganizationModel {
         try {
             $this->db->beginTransaction();
 
-            $this->db->prepare("DELETE FROM activity_log WHERE org_id = $1")->execute([$org_id]);
+            $this->db->prepare("DELETE FROM activity_log WHERE org_id = ?")->execute([$org_id]);
 
             $this->db->prepare("
                 DELETE FROM task_attachment
                 WHERE task_id IN (
                     SELECT t.task_id FROM task t
                     JOIN project p ON p.project_id = t.project_id
-                    WHERE p.organization_id = $1
+                    WHERE p.organization_id = ?
                 )
             ")->execute([$org_id]);
 
@@ -150,34 +150,34 @@ class OrganizationModel {
                 WHERE task_id IN (
                     SELECT t.task_id FROM task t
                     JOIN project p ON p.project_id = t.project_id
-                    WHERE p.organization_id = $1
+                    WHERE p.organization_id = ?
                 )
             ")->execute([$org_id]);
 
             $this->db->prepare("
                 DELETE FROM task
                 WHERE project_id IN (
-                    SELECT project_id FROM project WHERE organization_id = $1
+                    SELECT project_id FROM project WHERE organization_id = ?
                 )
             ")->execute([$org_id]);
 
             $this->db->prepare("
                 DELETE FROM project_members
                 WHERE project_id IN (
-                    SELECT project_id FROM project WHERE organization_id = $1
+                    SELECT project_id FROM project WHERE organization_id = ?
                 )
             ")->execute([$org_id]);
 
             $this->db->prepare("
                 DELETE FROM meeting
                 WHERE project_id IN (
-                    SELECT project_id FROM project WHERE organization_id = $1
+                    SELECT project_id FROM project WHERE organization_id = ?    
                 )
             ")->execute([$org_id]);
 
-            $this->db->prepare("DELETE FROM project      WHERE organization_id = $1")->execute([$org_id]);
-            $this->db->prepare("DELETE FROM \"user\"     WHERE organization_id = $1")->execute([$org_id]);
-            $this->db->prepare("DELETE FROM organization WHERE organization_id = $1")->execute([$org_id]);
+            $this->db->prepare("DELETE FROM project      WHERE organization_id = ?")->execute([$org_id]);
+            $this->db->prepare("DELETE FROM \"user\"     WHERE organization_id = ?")->execute([$org_id]);
+            $this->db->prepare("DELETE FROM organization WHERE organization_id = ?")->execute([$org_id]);
 
             $this->db->commit();
             return ['success' => true, 'message' => 'Organization deleted'];

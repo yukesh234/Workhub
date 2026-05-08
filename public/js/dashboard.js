@@ -260,7 +260,10 @@ document.getElementById('create-org-form')?.addEventListener('submit', async fun
             credentials: 'same-origin',
         });
         const json = await res.json();
-
+        if(!json.success){
+        console.log('Create org response:', json);
+        //stop here and log response to debug why org creation is failing, check if success is false or data is missing
+        }
         if (json.success && json.data) {
             closeModal('modalBackdrop');
             this.reset();

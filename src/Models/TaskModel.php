@@ -166,8 +166,8 @@ class TaskModel {
             ");
             $stmt->execute([':task_id' => $task_id, ':project_id' => $project_id]);
             return $stmt->fetch(PDO::FETCH_ASSOC);
-
         } catch (PDOException $e) {
+            error_log("Error fetching task: " . $e->getMessage());
             return false;
         }
     }
@@ -198,6 +198,7 @@ class TaskModel {
             return $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         } catch (PDOException $e) {
+            error_log("Error fetching tasks: " . $e->getMessage());
             return [];
         }
     }

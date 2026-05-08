@@ -6,7 +6,7 @@ require_once __DIR__ . '/../Middleware/UserMIddleware.php';
 require_once __DIR__ . '/../Models/UserModel.php';
 require_once __DIR__ . '/../Models/TaskModel.php';
 require_once __DIR__ . '/../utils/response.php';
-require_once __DIR__ . '/../utils/ActivityLogger.php'; 
+require_once __DIR__ . '/../utils/ActivityLogger.php';
 
 class UserController {
     private UserModel $user;
@@ -19,29 +19,29 @@ class UserController {
         $this->db   = Database::getInstance()->getConnection();
     }
 
-    public function getMyProjects(): void {
-        header('Content-Type: application/json');
-        $user_id = UserAuthMiddleware::userId();
+   public function getMyProjects(): void {
+    header('Content-Type: application/json');
+    $user_id = UserAuthMiddleware::userId();
 
-        try {
-            $stmt = $this->db->prepare("
-                SELECT p.project_id, p.name, p.description, p.status, p.created_at,
-                       pm.role AS my_role,
-                       COUNT(t.task_id)              AS task_count,
-                       SUM(t.status = 'completed')   AS done_count
-                FROM project_members pm
-                JOIN project p  ON p.project_id  = pm.project_id
-                LEFT JOIN task t ON t.project_id  = pm.project_id
-                WHERE pm.user_id = :user_id
-                GROUP BY p.project_id, pm.role
-                ORDER BY p.created_at DESC
-            ");
-            $stmt->execute([':user_id' => $user_id]);
-            Response(200, true, 'Projects fetched', $stmt->fetchAll(PDO::FETCH_ASSOC));
-        } catch (PDOException $e) {
-            Response(500, false, 'DB error: ' . $e->getMessage());
-        }
+    try {
+        $stmt = $this->db->prepare("
+            SELECT p.project_id, p.name, p.description, p.status, p.created_at,
+                pm.role AS my_role,
+                COUNT(t.task_id) AS task_count,
+                COUNT(t.task_id) FILTER (WHERE t.status = 'completed') AS done_count
+            FROM project_members pm
+            JOIN project p   ON p.project_id  = pm.project_id
+            LEFT JOIN task t ON t.project_id  = pm.project_id
+            WHERE pm.user_id = :user_id
+            GROUP BY p.project_id, p.name, p.description, p.status, p.created_at, pm.role
+            ORDER BY p.created_at DESC
+        ");
+        $stmt->execute([':user_id' => $user_id]);
+        Response(200, true, 'Projects fetched', $stmt->fetchAll(PDO::FETCH_ASSOC));
+    } catch (PDOException $e) {
+        Response(500, false, 'DB error: ' . $e->getMessage());
     }
+}
 
     public function getMyTasks(): void {
         header('Content-Type: application/json');
@@ -52,23 +52,39 @@ class UserController {
             if ($isManager) {
                 $stmt = $this->db->prepare("
                     SELECT t.*, p.name AS project_name,
-                           u.name AS assigned_user_name, u.email AS assigned_user_email, u.userProfile AS assigned_user_avatar
+                           u.name AS assigned_user_name,
+                           u.email AS assigned_user_email,
+                           u.\"userProfile\" AS assigned_user_avatar
                     FROM task t
                     JOIN project p          ON p.project_id  = t.project_id
                     JOIN project_members pm ON pm.project_id = t.project_id
-                    LEFT JOIN user u        ON u.user_id     = t.assigned_to
+                    LEFT JOIN \"user\" u     ON u.user_id     = t.assigned_to
                     WHERE pm.user_id = :user_id AND pm.role = 'manager'
-                    ORDER BY FIELD(t.priority,'critical','high','medium','low'), t.due_date ASC
+                    ORDER BY CASE t.priority
+                        WHEN 'critical' THEN 1
+                        WHEN 'high'     THEN 2
+                        WHEN 'medium'   THEN 3
+                        WHEN 'low'      THEN 4
+                        ELSE 5
+                    END, t.due_date ASC
                 ");
             } else {
                 $stmt = $this->db->prepare("
                     SELECT t.*, p.name AS project_name,
-                           u.name AS assigned_user_name, u.email AS assigned_user_email, u.userProfile AS assigned_user_avatar
+                           u.name AS assigned_user_name,
+                           u.email AS assigned_user_email,
+                           u.\"userProfile\" AS assigned_user_avatar
                     FROM task t
-                    JOIN project p   ON p.project_id = t.project_id
-                    LEFT JOIN user u ON u.user_id    = t.assigned_to
+                    JOIN project p        ON p.project_id = t.project_id
+                    LEFT JOIN \"user\" u   ON u.user_id    = t.assigned_to
                     WHERE t.assigned_to = :user_id
-                    ORDER BY FIELD(t.priority,'critical','high','medium','low'), t.due_date ASC
+                    ORDER BY CASE t.priority
+                        WHEN 'critical' THEN 1
+                        WHEN 'high'     THEN 2
+                        WHEN 'medium'   THEN 3
+                        WHEN 'low'      THEN 4
+                        ELSE 5
+                    END, t.due_date ASC
                 ");
             }
             $stmt->execute([':user_id' => $user_id]);
@@ -100,7 +116,7 @@ class UserController {
             $result = $this->task->updateStatus($task_id, $status);
             if (!$result['success']) Response(500, false, $result['message']);
 
-            // ── Log ──────────────────────────────────────────────────
+            // ── Log 
             $org_id = (int) ($_SESSION['organization_id'] ?? 0);
             ActivityLogger::log('status_updated', 'task', $org_id, $task_id, $taskRow['title'] . ' → ' . $status);
 
@@ -122,9 +138,9 @@ class UserController {
             if (!$check->fetch()) Response(403, false, 'Access denied');
 
             $stmt = $this->db->prepare("
-                SELECT u.user_id, u.name, u.email, u.userProfile, pm.role
+                SELECT u.user_id, u.name, u.email, u.\"userProfile\", pm.role
                 FROM project_members pm
-                JOIN user u ON u.user_id = pm.user_id
+                JOIN \"user\" u ON u.user_id = pm.user_id
                 WHERE pm.project_id = :project_id
                 ORDER BY pm.role DESC, u.name ASC
             ");
@@ -189,8 +205,11 @@ class UserController {
         ActivityLogger::log('updated_task', 'task', $org_id, $task_id, $title);
 
         Response(200, true, 'Task updated', [
-            'task_id' => $task_id, 'title' => $title,
-            'assigned_to' => $assigned_to, 'priority' => $priority, 'due_date' => $due_date,
+            'task_id'     => $task_id,
+            'title'       => $title,
+            'assigned_to' => $assigned_to,
+            'priority'    => $priority,
+            'due_date'    => $due_date,
         ]);
     }
 
@@ -252,11 +271,20 @@ class UserController {
             if (!$check->fetch()) Response(403, false, 'You are not a member of this project');
 
             $stmt = $this->db->prepare("
-                SELECT t.*, u.name AS assigned_user_name, u.email AS assigned_user_email, u.userProfile AS assigned_user_avatar
+                SELECT t.*,
+                       u.name AS assigned_user_name,
+                       u.email AS assigned_user_email,
+                       u.\"userProfile\" AS assigned_user_avatar
                 FROM task t
-                LEFT JOIN user u ON u.user_id = t.assigned_to
+                LEFT JOIN \"user\" u ON u.user_id = t.assigned_to
                 WHERE t.project_id = :project_id
-                ORDER BY FIELD(t.priority,'critical','high','medium','low'), t.due_date ASC
+                ORDER BY CASE t.priority
+                    WHEN 'critical' THEN 1
+                    WHEN 'high'     THEN 2
+                    WHEN 'medium'   THEN 3
+                    WHEN 'low'      THEN 4
+                    ELSE 5
+                END, t.due_date ASC
             ");
             $stmt->execute([':project_id' => $project_id]);
             Response(200, true, 'Tasks fetched', $stmt->fetchAll(PDO::FETCH_ASSOC));

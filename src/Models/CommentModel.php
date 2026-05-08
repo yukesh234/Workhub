@@ -59,29 +59,37 @@ class CommentModel {
      * COALESCE picks the admin email when author_type = 'admin', otherwise the user's name.
      */
     public function getComments(int $task_id): array {
-        try {
-            $stmt = $this->db->prepare("
-                SELECT
-                    c.comment_id,
-                    c.task_id,
-                    c.author_id,
-                    c.author_type,
-                    c.body,
-                    c.created_at,
-                    COALESCE(a.email, u.name) AS author_name,
-                    u.userprofile             AS author_avatar
-                FROM task_comment c
-                LEFT JOIN admin a ON c.author_type = 'admin' AND a.id      = c.author_id
-                LEFT JOIN \"user\" u ON c.author_type = 'user'  AND u.user_id = c.author_id
-                WHERE c.task_id = :task_id
-                ORDER BY c.created_at ASC
-            ");
-            $stmt->execute([':task_id' => $task_id]);
-            return $stmt->fetchAll(PDO::FETCH_ASSOC);
-        } catch (PDOException $e) {
-            return [];
-        }
+    try {
+        $stmt = $this->db->prepare("
+            SELECT
+                c.comment_id,
+                c.task_id,
+                c.author_id,
+                c.author_type,
+                c.body,
+                c.created_at,
+                CASE
+                    WHEN c.author_type = 'admin' THEN SPLIT_PART(a.email, '@', 1)
+                    ELSE u.name
+                END AS author_name,
+                u.\"userProfile\" AS author_avatar
+            FROM task_comment c
+            LEFT JOIN admin a
+                   ON c.author_type = 'admin'
+                  AND a.id = c.author_id
+            LEFT JOIN \"user\" u
+                   ON c.author_type = 'user'
+                  AND u.user_id = c.author_id
+            WHERE c.task_id = :task_id
+            ORDER BY c.created_at ASC
+        ");
+        $stmt->execute([':task_id' => $task_id]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (PDOException $e) {
+        error_log('getComments failed: ' . $e->getMessage());
+        return ['success' => false, 'message' => 'DB error: ' . $e->getMessage()];
     }
+}
 
     /** Delete a comment — caller must verify ownership */
     public function deleteComment(int $comment_id): array {
@@ -90,6 +98,7 @@ class CommentModel {
             $stmt->execute([$comment_id]);
             return ['success' => true];
         } catch (PDOException $e) {
+            error_log("Error deleting comment: " . $e->getMessage());
             return ['success' => false, 'message' => $e->getMessage()];
         }
     }
@@ -101,6 +110,7 @@ class CommentModel {
             $stmt->execute([$comment_id]);
             return $stmt->fetch(PDO::FETCH_ASSOC);
         } catch (PDOException $e) {
+            error_log("Error fetching comment: " . $e->getMessage());
             return false;
         }
     }

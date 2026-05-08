@@ -252,4 +252,10 @@ class UserModel
             return ['success' => false, 'message' => $e->getMessage()];
         }
     }
+
+    public function getUserRole(int $user_id){
+        $stmt = $this->db->prepare("SELECT role FROM \"user\" WHERE user_id = ?");
+        $stmt->execute([$user_id]);
+        return $stmt->fetch(PDO::FETCH_ASSOC);
+    }
 }

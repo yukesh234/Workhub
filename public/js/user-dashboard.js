@@ -43,6 +43,7 @@ async function loadMyProjects() {
     try {
         const res  = await fetch(BASE + '/api/user/projects', { credentials: 'same-origin' });
         const json = await res.json();
+        console.log('loadMyProjects response', json);
         if (!json.success) throw new Error(json.message);
         allProjects = json.data || [];
         renderProjects();

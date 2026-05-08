@@ -6,6 +6,11 @@ $adminId      = $_SESSION['admin_Id']    ?? '1';
 $adminInitial = strtoupper(substr($adminEmail, 0, 1));
 $adminHandle  = explode('@', $adminEmail)[0];
 $activePage   = 'dashboard';
+
+if(session_status() == PHP_SESSION_NONE){
+    session_start();
+}
+echo "admin_id :" .$_SESSION['admin_Id'] . "<br>";
 ?>
 <!DOCTYPE html>
 <html lang="en">

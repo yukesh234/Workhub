@@ -218,6 +218,14 @@ class AdminController {
             $slogan = trim($_POST['slogan'] ?? '');
             $result = $this->organization->createOrganization($admin_id, $name, $slogan, $imageUrl, $publicId);
 
+
+            if(!$result['success']){
+                // sending all the params
+                Response(400,false, "Failed to create organization. Params: 
+                admin_id=$admin_id, name=$name, slogan=$slogan, imageUrl=$imageUrl, 
+                publicId=$publicId. Error: " . $result['message']);
+            }
+
             if (!$result['success']) {
                 if ($publicId) $this->cloudinary->deleteImage($publicId);
                 Response(500, false, $result['message']);
@@ -236,7 +244,7 @@ class AdminController {
                 'created_at'        => date('Y-m-d H:i:s'),
             ]);
 
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Response(500, false, $e->getMessage());
         }
     }

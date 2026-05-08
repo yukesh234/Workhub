@@ -4,6 +4,7 @@ $basePath     = rtrim(dirname($_SERVER['SCRIPT_NAME']), '/');
 $adminEmail   = $_SESSION['admin_email'] ?? 'admin@workhub.com';
 $adminInitial = strtoupper(substr($adminEmail, 0, 1));
 $activePage   = 'members';
+$adminHandle  = explode('@', $adminEmail)[0];
 ?>
 <!DOCTYPE html>
 <html lang="en">

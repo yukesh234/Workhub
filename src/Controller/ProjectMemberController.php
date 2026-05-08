@@ -4,17 +4,20 @@ require_once __DIR__ . '/../Models/ProjectMemberModel.php';
 require_once __DIR__ . '/../Models/ProjectModel.php';
 require_once __DIR__ . '/../Models/OrganizationModel.php';
 require_once __DIR__ . '/../Middleware/AuthMiddleware.php';
-require_once __DIR__ . '/../utils/ActivityLogger.php'; // ← added
+require_once __DIR__ . '/../utils/ActivityLogger.php'; 
+require_once __DIR__ . '/../Models/UserModel.php';
 
 class ProjectMemberController {
     private ProjectMemberModel $projectMember;
     private ProjectModel       $project;
     private OrganizationModel  $organization;
+    private UserModel          $user;
 
     public function __construct() {
         $this->projectMember = new ProjectMemberModel();
         $this->project       = new ProjectModel();
         $this->organization  = new OrganizationModel();
+        $this->user         = new UserModel();
     }
 
     public function addMember() {
@@ -26,9 +29,11 @@ class ProjectMemberController {
             Response(400, false, "project_id and user_id are required");
         }
 
+        //fetching users role
+        $user_role = $this->user->getUserRole($data['user_id']);
         $project_id = (int) $data['project_id'];
         $user_id    = (int) $data['user_id'];
-        $role       = in_array($data['role'] ?? '', ['manager', 'member']) ? $data['role'] : 'member';
+        $role       = $user_role['role'] === 'manager' ? 'manager' : 'member';
 
         $this->assertProjectOwnership($project_id);
 
@@ -39,7 +44,7 @@ class ProjectMemberController {
         $result  = $this->projectMember->addMember($project_id, $user_id, $role);
         $org_id  = $this->getOrgIdFromProject($project_id);
 
-        // ── Log ──────────────────────────────────────────────────────
+        // ── Log 
         ActivityLogger::log('added_project_member', 'member', $org_id, $user_id, "project #{$project_id}");
 
         Response(201, true, $result['message']);

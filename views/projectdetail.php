@@ -389,17 +389,6 @@ $activePage   = 'projects';
 
         .tdp-section-label { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: .6px; margin-bottom: 8px; }
 
-        .tdp-status-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
-        .tdp-status-opt {
-            border: 1.5px solid var(--border); border-radius: var(--radius-sm);
-            padding: 8px 10px; cursor: pointer; transition: all var(--transition);
-            text-align: center; font-size: 12px; font-weight: 600; color: var(--text-muted);
-        }
-        .tdp-status-opt.active.pending     { border-color: var(--border);    background: var(--surface-2);   color: var(--text-muted); }
-        .tdp-status-opt.active.in_progress { border-color: #ea580c;           background: #fff7ed;             color: #ea580c; }
-        .tdp-status-opt.active.in_review   { border-color: var(--brand);      background: var(--brand-pale);   color: var(--brand); }
-        .tdp-status-opt.active.completed   { border-color: #1a8a5c;           background: #e6f9f1;             color: #1a8a5c; }
-
         .tdp-desc { font-size: 13.5px; color: var(--text-secondary); line-height: 1.7; }
         .tdp-desc.empty { color: var(--text-muted); font-style: italic; }
 
@@ -711,9 +700,11 @@ $activePage   = 'projects';
 
 
 <!-- ══ Task Detail Side Panel ══ -->
+<!-- FIX: backdrop onclick calls closeTaskDetail(event) -->
+<!-- FIX: panel div has onclick="event.stopPropagation()" to prevent bubbling -->
 <div class="task-detail-backdrop" id="task-detail-backdrop"
      onclick="closeTaskDetail(event)">
-    <div class="task-detail-panel">
+    <div class="task-detail-panel" onclick="event.stopPropagation()">
         <div class="tdp-header">
             <h3 id="tdp-title">Task</h3>
             <button style="background:none;border:none;cursor:pointer;color:var(--text-muted);padding:4px"
@@ -777,7 +768,7 @@ $activePage   = 'projects';
             <div>
                 <div class="tdp-section-label" style="margin-bottom:10px">Comments</div>
                 <div id="tdp-comments-list"></div>
-                <div class="tdp-comment-compose">
+                <div class="tdp-comment-compose" id="tdp-comment-compose">
                     <textarea id="tdp-comment-input" placeholder="Write a comment… (Enter to send, Shift+Enter for newline)" rows="2"></textarea>
                     <button class="tdp-comment-submit" id="tdp-comment-submit" onclick="postComment()">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -790,7 +781,7 @@ $activePage   = 'projects';
         </div>
         <div class="tdp-footer">
             <button class="btn-ghost" style="flex:1"
-                    onclick="event.stopPropagation(); openEditTaskModal(currentTask?.task_id)">Edit Task</button>
+                    onclick="openEditTaskModal(currentTask?.task_id)">Edit Task</button>
             <button class="btn-primary" style="flex:1;background:#dc2626;box-shadow:none"
                     onclick="deleteTaskFromPanel()">
                 <div class="btn-spin"></div>
@@ -847,7 +838,6 @@ $activePage   = 'projects';
                     <option value="critical">Critical</option>
                 </select>
             </div>
-            <!-- Status intentionally removed — only assigned member can update status -->
 
             <div class="modal-actions">
                 <button type="button" class="btn-ghost" onclick="closeModal('modal-task')">Cancel</button>
