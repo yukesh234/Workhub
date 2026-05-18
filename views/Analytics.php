@@ -175,6 +175,7 @@ $activePage   = 'analytics';
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <script> window.WH_BASE = '<?= $basePath ?>'; </script>
 <script src="<?= $basePath ?>/js/app.js"></script>
+<script src="<?= $basePath ?>/js/confirm-dialog.js"></script>
 <script src="<?= $basePath ?>/js/analytics.js"></script>
 </body>
 </html>

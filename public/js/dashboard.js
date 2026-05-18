@@ -4,7 +4,7 @@
  * Requires app.js (BASE, esc, setSidebarOrg, showToast, formatDateShort, openModal, closeModal, previewLogo)
  */
 
-// ── State helpers ─────────────────────────────────────────────────────
+// ── State helpers 
 function showState(name) {
     ['loading', 'no-org', 'error'].forEach(s => {
         const el = document.getElementById(`main-${s}`);
@@ -44,21 +44,25 @@ function renderOrgCard(org) {
 async function fetchOrg() {
     showState('loading');
     setSidebarSkeleton();
-
     try {
         const res  = await fetch(BASE + '/api/organization', { credentials: 'same-origin' });
         const json = await res.json();
+        console.log('Organization response:', json);
 
-        if (!json.success || !json.data) {
+        if (!json.success || !json.data || json.data === null) {
             setSidebarNoOrg();
             showState('no-org');
+            lockNav();
+            console.log("No organization found for the user. Showing 'no-org' state.");
             return;
         }
 
+        console.log('Organization data:', json.data);
         const org = json.data;
         setSidebarOrg(org);
         renderOrgCard(org);
         showState('has-org');
+        unlockNav();
 
         // Load stats and panels in parallel — don't block the page showing
         loadStats();
@@ -261,7 +265,7 @@ document.getElementById('create-org-form')?.addEventListener('submit', async fun
         });
         const json = await res.json();
         if(!json.success){
-        console.log('Create org response:', json);
+                throw new Error(json.message || 'Failed to create organization.');
         //stop here and log response to debug why org creation is failing, check if success is false or data is missing
         }
         if (json.success && json.data) {
@@ -279,9 +283,7 @@ document.getElementById('create-org-form')?.addEventListener('submit', async fun
             showToast('Organization created successfully!');
 
             // Load stats after org creation
-            loadStats();
-            loadRecentProjects();
-            loadRecentActivity();
+            window.location.reload(); // Simple way to refresh all data and state after org creation    
         } else {
             throw new Error(json.message || 'Failed to create organization.');
         }
@@ -306,6 +308,17 @@ function timeAgo(dateStr) {
     if (diff < 86400)return `${Math.floor(diff / 3600)}h ago`;
     return `${Math.floor(diff / 86400)}d ago`;
 }
+function lockNav() {
+    const lockedPages = ['projects', 'members', 'analytics', 'settings'];
+    lockedPages.forEach(page => {
+        document.querySelectorAll(`.nav-item[href*="/${page}"]`)
+            .forEach(el => el.classList.add('nav-locked'));
+    });
+}
 
-// ── Boot ─────────────────────────────────────────────────────────────
+function unlockNav() {
+    document.querySelectorAll('.nav-item.nav-locked')
+        .forEach(el => el.classList.remove('nav-locked'));
+}
+//  Boot 
 document.addEventListener('DOMContentLoaded', fetchOrg);

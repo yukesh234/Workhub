@@ -259,58 +259,143 @@ $isManager   = $userRole === 'manager';
         .btn-meet-join:hover { opacity:.9; transform:translateY(-1px); }
 
         @media (max-width:1100px) { .page-grid { grid-template-columns:1fr; } .stats-strip { grid-template-columns:repeat(2,1fr); } }
+                    /* ── Projects nav dropdown ── */
+            .nav-projects-toggle { cursor: pointer; user-select: none; }
+            .nav-projects-toggle:hover { background: rgba(255,255,255,.1); color: #fff; }
+
+            .nav-project-item {
+                display: flex; align-items: center; gap: 8px;
+                padding: 7px 12px 7px 20px;
+                border-radius: var(--radius-sm); color: rgba(255,255,255,.65);
+                text-decoration: none; font-size: 13px; font-weight: 500;
+                cursor: pointer; transition: background var(--transition), color var(--transition);
+                white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+                position: relative;
+            }
+            .nav-project-item:hover { background: rgba(255,255,255,.08); color: #fff; }
+            .nav-project-item.active { background: rgba(255,255,255,.14); color: #fff; font-weight: 600; }
+            .nav-project-item.active::before {
+                content:''; position:absolute; left:0; top:20%; bottom:20%;
+                width:3px; background:var(--accent); border-radius:0 3px 3px 0;
+            }
+
+            .nav-project-dot {
+                width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+            }
+            .nav-project-dot.active    { background: #34d399; }
+            .nav-project-dot.completed { background: rgba(255,255,255,.4); }
+            .nav-project-dot.archived  { background: rgba(255,255,255,.2); }
+
+            .nav-projects-empty {
+                padding: 8px 12px 8px 20px;
+                font-size: 12px; color: rgba(255,255,255,.3); font-style: italic;
+            }
+
+            @keyframes navShimmer { 0%,100%{opacity:.4} 50%{opacity:.8} }
     </style>
 </head>
 <body>
 <div class="app-shell">
 
     <aside class="sidebar">
-        <div class="sidebar-logo">
-            <div class="logo-mark">W</div>
-            <div class="logo-text">Work<span>Hub</span></div>
+    <div class="sidebar-logo">
+        <div class="logo-mark">W</div>
+        <div class="logo-text">Work<span>Hub</span></div>
+    </div>
+
+    <nav class="sidebar-nav">
+        <div class="nav-section-label">Workspace</div>
+
+        <a href="<?= $basePath ?>/user/dashboard"
+           class="nav-item <?= strpos($_SERVER['REQUEST_URI'], '/dashboard') !== false ? 'active' : '' ?>">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+                <rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
+            </svg>
+            Dashboard
+        </a>
+
+        <a href="<?= $basePath ?>/user/tasks"
+           class="nav-item <?= strpos($_SERVER['REQUEST_URI'], '/tasks') !== false ? 'active' : '' ?>">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9 11l3 3L22 4"/>
+                <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+            </svg>
+            My Tasks
+        </a>
+
+        <!-- ── Projects dropdown ── -->
+        <div class="nav-item nav-projects-toggle" id="nav-projects-toggle" onclick="toggleProjectsNav()">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+            </svg>
+            <span style="flex:1">Projects</span>
+            <svg id="projects-chevron" style="width:14px;height:14px;stroke:currentColor;transition:transform .22s cubic-bezier(.4,0,.2,1);flex-shrink:0"
+                 viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="6 9 12 15 18 9"/>
+            </svg>
         </div>
-        <nav class="sidebar-nav">
-            <div class="nav-section-label">Workspace</div>
-            <a href="<?= $basePath ?>/user/dashboard" class="nav-item">
-                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
-                    <rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
-                </svg>
-                Dashboard
-            </a>
-            <a href="<?= $basePath ?>/user/tasks" class="nav-item">
-                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M9 11l3 3L22 4"/>
-                    <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
-                </svg>
-                My Tasks
-            </a>
-            <?php if ($isManager): ?>
-            <div class="nav-section-label">Manage</div>
-            <a href="<?= $basePath ?>/user/projects" class="nav-item active">
-                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
-                </svg>
-                Projects
-            </a>
-            <?php endif; ?>
-        </nav>
-        <div class="sidebar-footer">
-            <div class="user-card">
-                <div class="user-avatar"><?= htmlspecialchars($userInitial) ?></div>
-                <div class="user-info">
-                    <div class="user-name"><?= htmlspecialchars($userName) ?></div>
-                    <div class="user-role-txt"><?= htmlspecialchars($userRole) ?></div>
-                </div>
-                <button class="btn-logout-sm" onclick="handleLogout()" title="Logout">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-                        <polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
-                    </svg>
-                </button>
+
+        <div id="projects-nav-list" style="overflow:hidden;max-height:0;transition:max-height .3s cubic-bezier(.4,0,.2,1)">
+            <div id="projects-nav-skeleton" style="padding:4px 10px 6px">
+                <div style="height:32px;border-radius:6px;background:rgba(255,255,255,.08);margin-bottom:4px;animation:navShimmer 1.4s infinite"></div>
+                <div style="height:32px;border-radius:6px;background:rgba(255,255,255,.08);margin-bottom:4px;animation:navShimmer 1.4s infinite;animation-delay:.15s"></div>
+                <div style="height:32px;border-radius:6px;background:rgba(255,255,255,.08);animation:navShimmer 1.4s infinite;animation-delay:.3s"></div>
             </div>
+            <div id="projects-nav-items"></div>
         </div>
-    </aside>
+
+        <!-- ── Manager-only ── -->
+        <?php if ($isManager): ?>
+        <div class="nav-section-label" style="margin-top:6px">Manage</div>
+        <a href="<?= $basePath ?>/user/analytics"
+           class="nav-item <?= strpos($_SERVER['REQUEST_URI'], '/analytics') !== false ? 'active' : '' ?>">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="18" y1="20" x2="18" y2="10"/>
+                <line x1="12" y1="20" x2="12" y2="4"/>
+                <line x1="6"  y1="20" x2="6"  y2="14"/>
+                <line x1="2"  y1="20" x2="22" y2="20"/>
+            </svg>
+            Analytics
+        </a>
+        <?php endif; ?>
+
+        <!-- ── Both roles ── -->
+        <div class="nav-section-label" style="margin-top:6px">You</div>
+        <a href="<?= $basePath ?>/user/notifications"
+           class="nav-item <?= strpos($_SERVER['REQUEST_URI'], '/notifications') !== false ? 'active' : '' ?>"
+           id="nav-notifications-link">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+            </svg>
+            <span style="flex:1">Notifications</span>
+            <span id="nav-notif-badge" data-notif-badge
+                  style="display:none;min-width:18px;height:18px;padding:0 5px;
+                         border-radius:20px;background:var(--accent);
+                         color:var(--brand);font-size:10px;font-weight:700;
+                         line-height:18px;text-align:center;flex-shrink:0">
+            </span>
+        </a>
+
+    </nav>
+
+    <div class="sidebar-footer">
+        <div class="user-card">
+            <div class="user-avatar" id="sidebar-avatar"><?= htmlspecialchars($userInitial) ?></div>
+            <div class="user-info">
+                <div class="user-name"><?= htmlspecialchars($userName) ?></div>
+                <div class="user-role"><?= htmlspecialchars($userRole) ?></div>
+            </div>
+            <button class="btn-logout-sm" onclick="handleLogout()" title="Logout">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                    <polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+                </svg>
+            </button>
+        </div>
+    </div>
+</aside>
 
     <div class="main">
         <header class="topbar">
@@ -612,6 +697,7 @@ $isManager   = $userRole === 'manager';
     const IS_MANAGER = window.WH_ROLE === 'manager';
 </script>
 <script src="<?= $basePath ?>/js/meeting.js"></script>
+<script src="<?= $basePath ?>/js/notif-poll.js"></script>
 <script src="<?= $basePath ?>/js/user-project-details.js"></script>
 </body>
 </html>

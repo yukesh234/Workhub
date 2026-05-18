@@ -856,6 +856,7 @@ $activePage   = 'projects';
     window._canEndMeeting   = true;
     window._meetingUserName = '<?= addslashes($adminHandle) ?>';
 </script>
+<script src="<?= $basePath ?>/js/confirm-dialog.js"></script>
 <script src="<?= $basePath ?>/js/app.js"></script>
 <script src="<?= $basePath ?>/js/meeting.js"></script>
 <script src="<?= $basePath ?>/js/project-details.js"></script>

@@ -107,6 +107,20 @@ echo "admin_id :" .$_SESSION['admin_Id'] . "<br>";
         .state.active       { display:flex; }
         .spinner            { width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--brand);border-radius:50%;animation:spin .8s linear infinite;margin-bottom:16px; }
         @keyframes spin { to{transform:rotate(360deg)} }
+        /* Disabled nav items when no org exists */
+        .nav-item.nav-locked {
+            opacity: 0.4;
+            pointer-events: none;
+            cursor: not-allowed;
+            position: relative;
+        }
+
+        .nav-item.nav-locked::after {
+            content: '🔒';
+            font-size: 10px;
+            margin-left: auto;
+            opacity: 0.6;
+        }
 
         .no-org-icon svg  { width:64px;height:64px;stroke:var(--text-muted);margin-bottom:16px; }
         .no-org-title     { font-family:'Playfair Display',serif;font-size:22px;color:var(--text-primary);margin-bottom:8px; }
@@ -362,6 +376,7 @@ echo "admin_id :" .$_SESSION['admin_Id'] . "<br>";
 </div>
 
 <script> window.WH_BASE = '<?= $basePath ?>'; </script>
+<script src="<?= $basePath ?>/js/confirm-dialog.js"></script>
 <script src="<?= $basePath ?>/js/app.js"></script>
 <script src="<?= $basePath ?>/js/dashboard.js"></script>
 </body>

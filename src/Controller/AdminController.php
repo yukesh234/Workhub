@@ -291,7 +291,7 @@ class AdminController {
                 Response(400, false, $result['message']);
             }
 
-            // ── Log ──────────────────────────────────────────────────
+            //  Log 
             ActivityLogger::log('created_member', 'member',
                 (int) $organization_id,
                 (int) $result['user_id'], $name);
@@ -305,10 +305,144 @@ class AdminController {
                 'userProfile'        => $imageUrl,
             ]);
 
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Response(500, false, $e->getMessage());
         }
     }
+
+    public function editUser(): void {
+    try {
+        if (!AuthMiddleware::isLoggedIn()) Response(401, false, "Unauthorized");
+
+        header('Content-Type: application/json');
+
+        $admin_id        = AuthMiddleware::adminId();
+        $organization_id = (int) AuthMiddleware::organization($this->organization, $admin_id);
+
+        // ── Parse multipart/form-data from PUT body 
+        // PHP only populates $_POST/$_FILES for POST, so we manually
+        // pipe the raw stream into a temp file and re-parse it.
+        $fields = [];
+        $files  = [];
+
+        if ($_SERVER['REQUEST_METHOD'] === 'PUT') {
+            $raw     = file_get_contents('php://input');
+            $tmpFile = tempnam(sys_get_temp_dir(), 'put_');
+            file_put_contents($tmpFile, $raw);
+
+            // Extract boundary from Content-Type header
+            $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
+            if (preg_match('/boundary=(.*)$/', $contentType, $matches)) {
+                $boundary = $matches[1];
+                $parts    = array_slice(explode('--' . $boundary, $raw), 1);
+
+                foreach ($parts as $part) {
+                    if (trim($part) === '--') continue;
+
+                    [$rawHeaders, $body] = explode("\r\n\r\n", $part, 2);
+                    $body = rtrim($body, "\r\n");
+
+                    // Parse headers for this part
+                    $headers = [];
+                    foreach (explode("\r\n", $rawHeaders) as $line) {
+                        if (strpos($line, ':') !== false) {
+                            [$k, $v] = explode(':', $line, 2);
+                            $headers[strtolower(trim($k))] = trim($v);
+                        }
+                    }
+
+                    $disposition = $headers['content-disposition'] ?? '';
+                    preg_match('/name="([^"]+)"/', $disposition, $nameMatch);
+                    $fieldName = $nameMatch[1] ?? null;
+                    if (!$fieldName) continue;
+
+                    // File part vs plain field
+                    if (preg_match('/filename="([^"]+)"/', $disposition, $fileMatch)) {
+                        $filename  = $fileMatch[1];
+                        $mimeType  = $headers['content-type'] ?? 'application/octet-stream';
+                        $tmpPath   = tempnam(sys_get_temp_dir(), 'upl_');
+                        file_put_contents($tmpPath, $body);
+
+                        $files[$fieldName] = [
+                            'name'     => $filename,
+                            'type'     => $mimeType,
+                            'tmp_name' => $tmpPath,
+                            'error'    => UPLOAD_ERR_OK,
+                            'size'     => strlen($body),
+                        ];
+                    } else {
+                        $fields[$fieldName] = $body;
+                    }
+                }
+            }
+            unlink($tmpFile);
+        } else {
+            // Fallback: normal POST (useful if you ever switch methods)
+            $fields = $_POST;
+            $files  = $_FILES;
+        }
+
+        // ── Validate ──────────────────────────────────────────────
+        $user_id = (int) ($fields['user_id'] ?? 0);
+        $name    = trim($fields['name']    ?? '');
+        $email   = trim($fields['email']   ?? '');
+        $role    = trim($fields['role']    ?? '');
+
+        if (!$user_id)                                    Response(400, false, "user_id is required");
+        if (empty($name))                                 Response(400, false, "Name is required");
+        if (empty($email))                                Response(400, false, "Email is required");
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL))   Response(400, false, "Invalid email format");
+        if (!in_array($role, ['manager', 'member']))      Response(400, false, "Invalid role");
+        if (strlen($name) > 255)                          Response(400, false, "Name too long (max 255 chars)");
+
+        // ── Fetch existing user ───────────────────────────────────
+        $existing = $this->user->getUserById($user_id);
+        if (!$existing) Response(404, false, "Member not found");
+
+        // ── Handle new photo ──────────────────────────────────────
+        $newImageUrl = null;
+        $newPublicId = null;
+        $oldPublicId = $existing['profile_public_id'] ?? null;
+
+        if (isset($files['image']) && $files['image']['error'] === UPLOAD_ERR_OK) {
+            $allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+            if (!in_array($files['image']['type'], $allowedTypes)) {
+                Response(400, false, "Invalid image type. Only JPG, PNG, WEBP allowed");
+            }
+
+            $uploaded    = $this->cloudinary->uploadImage($files['image']['tmp_name'], 'workhub/users');
+            $newImageUrl = $uploaded['url'];
+            $newPublicId = $uploaded['public_id'];
+
+            // Delete old only after successful upload
+            if ($oldPublicId) $this->cloudinary->deleteImage($oldPublicId);
+
+            // Clean up our manually created temp file
+            @unlink($files['image']['tmp_name']);
+        }
+
+        //  Persist 
+        $result = $this->user->editUser($user_id, $name, $email, $role, $newImageUrl, $newPublicId);
+
+        if (!$result['success']) {
+            if ($newPublicId) $this->cloudinary->deleteImage($newPublicId);
+            Response(400, false, $result['message']);
+        }
+
+        ActivityLogger::log('edited_member', 'member', $organization_id, $user_id, $name);
+
+        Response(200, true, "Member updated successfully", [
+            'user_id'     => $user_id,
+            'name'        => $name,
+            'email'       => $email,
+            'role'        => $role,
+            'userProfile' => $newImageUrl ?? $existing['userProfile'] ?? null,
+        ]);
+
+    } catch (Exception $e) {
+        Response(500, false, $e->getMessage());
+    }
+}
 
     public function removeMember() {
         try {
@@ -342,6 +476,8 @@ class AdminController {
         }
     }
 
+    
+
     public function getOrganization() {
         try {
             if (!AuthMiddleware::isLoggedIn()) Response(401, false, "Unauthorized");
@@ -365,7 +501,7 @@ class AdminController {
         }
     }
 
-    // ── GET /forgot-password ──────────────────────────────────────────
+    // ── GET /forgot-password 
 public function showForgotPasswordForm(): void {
     if (AuthMiddleware::isLoggedIn()) {
         header("Location: " . $this->getBaseUrl() . "/dashboard");
@@ -374,7 +510,7 @@ public function showForgotPasswordForm(): void {
     require_once __DIR__ . '/../../views/auth/ForgotPassword.php';
 }
 
-// ── POST /api/admin/forgot-password  { email } ────────────────────
+// ── POST /api/admin/forgot-password  { email } 
 public function forgotPassword(): void {
     header('Content-Type: application/json');
 

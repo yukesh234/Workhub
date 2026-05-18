@@ -429,6 +429,7 @@ $activePage   = 'settings';
 
 <script> window.WH_BASE = '<?= $basePath ?>'; </script>
 <script src="<?= $basePath ?>/js/app.js"></script>
+<script src="<?= $basePath ?>/js/confirm-dialog.js"></script>
 <script src="<?= $basePath ?>/js/settings.js"></script>
 </body>
 </html>

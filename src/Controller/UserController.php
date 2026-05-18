@@ -303,4 +303,33 @@ class UserController {
             Response(500, false, 'DB error: ' . $e->getMessage());
         }
     }
+
+     public function getAnalytics(): void
+    {
+        try {
+            header('Content-Type: application/json');
+ 
+            if (!UserAuthMiddleware::isLoggedIn()) {
+                Response(401, false, 'Unauthorized');
+            }
+ 
+            $userId = (int) ($_SESSION['user_id'] ?? 0);
+            $role   = $_SESSION['role'] ?? 'member';
+ 
+            if ($role !== 'manager') {
+                Response(403, false, 'Only managers can access analytics');
+            }
+ 
+            $result = $this->user->getManagerAnalytics($userId);
+ 
+            if (!$result['success']) {
+                Response(500, false, $result['message'] ?? 'Failed to fetch analytics');
+            }
+ 
+            Response(200, true, 'Analytics fetched', $result['data']);
+ 
+        } catch (Exception $e) {
+            Response(500, false, $e->getMessage());
+        }
+    }
 }

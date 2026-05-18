@@ -26,10 +26,11 @@ class ProjectController {
 
         $admin_id        = AuthMiddleware::adminId();
         $organization_id = AuthMiddleware::organization($this->organization, $admin_id);
+        
 
         $result = $this->project->createProject($organization_id, $name, $description, $admin_id, 'active');
 
-        // ── Log ──────────────────────────────────────────────────────
+        // ── Log
         ActivityLogger::log('created_project', 'project',
             (int) $organization_id,
             (int) $result['project_id'], $name);

@@ -485,6 +485,7 @@ $activePage   = 'projects';
 
 <script> window.WH_BASE = '<?= $basePath ?>'; </script>
 <script src="<?= $basePath ?>/js/app.js"></script>
+<script src="<?= $basePath ?>/js/confirm-dialog.js"></script>
 <script src="<?= $basePath ?>/js/Projects.js"></script>
 </body>
 </html>

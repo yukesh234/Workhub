@@ -296,6 +296,7 @@ if (!$userId) {
     window.MEMBER_ID = <?= $userId ?>;
 </script>
 <script src="<?= $basePath ?>/js/app.js"></script>
+<script src="<?= $basePath ?>/js/confirm-dialog.js"></script>
 <script src="<?= $basePath ?>/js/member-analytics.js"></script>
 </body>
 </html>

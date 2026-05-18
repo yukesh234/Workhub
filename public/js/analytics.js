@@ -9,7 +9,7 @@ const LOG_LIMIT   = 20;
 let logTotal      = 0;
 let actionTypes   = [];
 
-// ── Boot ──────────────────────────────────────────────────────────────
+//  Boot 
 document.addEventListener('DOMContentLoaded', () => {
     loadSidebarOrg();
     document.getElementById('topbarDate').textContent =
@@ -19,7 +19,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadLogs();
 });
 
-// ── Analytics ─────────────────────────────────────────────────────────
+//  Analytics 
 async function loadAnalytics() {
     try {
         const res  = await fetch(BASE + '/api/analytics/admin', { credentials:'same-origin' });

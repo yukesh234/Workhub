@@ -11,14 +11,14 @@ let activeMeeting    = null;
 let meetingPollTimer = null;
 const MEETING_POLL_MS = 6000;
 
-// ── Boot ──────────────────────────────────────────────────────────────
+// ── Boot 
 async function initMeeting(userName) {
     if (userName) window._meetingUserName = userName;
     await checkActiveMeeting();
     meetingPollTimer = setInterval(checkActiveMeeting, MEETING_POLL_MS);
 }
 
-// ── Poll ──────────────────────────────────────────────────────────────
+// ── Poll 
 async function checkActiveMeeting() {
     try {
         const res  = await fetch(`${BASE}/api/meetings/active?project_id=${PROJECT_ID}`, { credentials:'same-origin' });
@@ -36,7 +36,7 @@ async function checkActiveMeeting() {
     } catch {}
 }
 
-// ── Meeting bar ───────────────────────────────────────────────────────
+//  Meeting bar 
 function renderMeetingBar() {
     const bar = document.getElementById('meeting-bar');
     if (!bar) return;
@@ -78,7 +78,7 @@ function renderMeetingBar() {
         </style>`;
 }
 
-// ── Sync hero button ──────────────────────────────────────────────────
+//  Sync hero button 
 function syncHeroButton() {
     const btn = document.getElementById('meet-hero-btn');
     if (!btn) return;
@@ -107,7 +107,7 @@ function syncHeroButton() {
     }
 }
 
-// ── Start meeting ─────────────────────────────────────────────────────
+//  Start meeting 
 async function startMeeting() {
     const btn = document.getElementById('meet-hero-btn');
     if (btn) { btn.textContent = 'Starting…'; btn.disabled = true; }
@@ -136,7 +136,7 @@ async function startMeeting() {
     }
 }
 
-// ── Join meeting (fetch a fresh JWT for this user, then open) ─────────
+//  Join meeting (fetch a fresh JWT for this user, then open) ─────────
 async function joinMeeting() {
     if (!activeMeeting) {
         showToast('No active meeting — ask the manager to start one first.', 'error');
@@ -164,7 +164,7 @@ function openJaaSTab(jaasUrl, token) {
 
 // End meeting
 async function endMeeting() {
-    if (!activeMeeting || !confirm('End the meeting for everyone?')) return;
+    if(!await ConfirmDialog.show(`Are you sure you want to end the meeting? This cannot be undone.`)) return;
     try {
         const res  = await fetch(BASE + '/api/meetings/end', {
             method: 'POST',

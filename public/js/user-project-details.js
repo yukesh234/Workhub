@@ -11,7 +11,7 @@ let currentTask  = null;
 
 if (!PROJECT_ID) location.href = BASE + '/user/dashboard';
 
-// ── Boot ──────────────────────────────────────────────────────────────
+//  Boot 
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('topbar-date').textContent =
         new Date().toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric' });
@@ -21,6 +21,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     Promise.all([loadProject(), loadMembers(), loadTasks()]);
+    NotifPoll.start(BASE, () => loadNotifications());
 
     // Init meeting polling — manager can start, members can join
     initMeeting(window._meetingUserName || 'Team Member').then(() => syncHeroButton());
@@ -314,7 +315,7 @@ function closeTaskPanel(e) {
     currentTask = null;
 }
 
-// ── Comments ──────────────────────────────────────────────────────────
+// ── Comments 
 async function loadPanelComments(taskId, projectId) {
     const wrap = document.getElementById('udp-comments-list');
     wrap.innerHTML = `<div style="padding:8px 0;color:var(--text-muted);font-size:13px">Loading…</div>`;
@@ -568,7 +569,7 @@ async function doDeleteTask(taskId) {
     } catch (err) { showToast(err.message, 'error'); }
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────
+// ── Helpers 
 function esc(str) {
     if (!str) return '';
     return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
@@ -597,3 +598,99 @@ document.addEventListener('keydown', e => {
         currentTask = null;
     }
 });
+
+// ── Sidebar projects nav 
+
+let _navProjectsOpen  = false;
+let _navProjectsLoaded = false;
+
+function toggleProjectsNav() {
+    _navProjectsOpen = !_navProjectsOpen;
+
+    const list     = document.getElementById('projects-nav-list');
+    const chevron  = document.getElementById('projects-chevron');
+    const toggle   = document.getElementById('nav-projects-toggle');
+
+    if (_navProjectsOpen) {
+        // Expand — measure content height after render
+        list.style.maxHeight = '400px';   // generous max; CSS transition handles feel
+        chevron.style.transform = 'rotate(180deg)';
+        toggle.classList.add('active');
+
+        // Load once
+        if (!_navProjectsLoaded) loadProjectsNav();
+    } else {
+        list.style.maxHeight = '0';
+        chevron.style.transform = 'rotate(0deg)';
+        toggle.classList.remove('active');
+    }
+}
+
+async function loadProjectsNav() {
+    try {
+        let projects;
+
+        if (typeof allProjects !== 'undefined' && allProjects.length > 0) {
+            // Dashboard / Tasks — data already in memory
+            projects = allProjects;
+        } else if (typeof allProjects !== 'undefined' && allProjects.length === 0) {
+            
+            projects = allProjects;
+        } else {
+            const res  = await fetch(BASE + '/api/user/projects', { credentials: 'same-origin' });
+            const json = await res.json();
+            projects   = json.success ? (json.data || []) : [];
+        }
+
+        _navProjectsLoaded = true;
+        renderProjectsNav(projects);
+
+    } catch (err) {
+        console.error('loadProjectsNav failed:', err);
+        const items = document.getElementById('projects-nav-items');
+        const skel  = document.getElementById('projects-nav-skeleton');
+        if (items) items.innerHTML = `<div class="nav-projects-empty">Failed to load</div>`;
+        if (skel)  skel.style.display = 'none';
+    }
+}
+
+function renderProjectsNav(projects) {
+    const skeleton = document.getElementById('projects-nav-skeleton');
+    const items    = document.getElementById('projects-nav-items');
+
+    skeleton.style.display = 'none';
+
+    if (!projects.length) {
+        items.innerHTML = `<div class="nav-projects-empty">No projects yet</div>`;
+        return;
+    }
+
+    // Detect currently active project (for ProjectDetail pages)
+    const currentProjectId = (typeof PROJECT_ID !== 'undefined') ? PROJECT_ID : null;
+
+    items.innerHTML = projects.map(p => {
+        const isActive = currentProjectId && p.project_id === currentProjectId;
+        // Truncate long names to keep sidebar clean
+        const name = (p.name || 'Untitled').length > 22
+            ? (p.name).slice(0, 21) + '…'
+            : p.name;
+
+        return `
+        <a href="${BASE}/user/project?id=${p.project_id}"
+           class="nav-project-item ${isActive ? 'active' : ''}">
+            <span class="nav-project-dot ${escNav(p.status)}"></span>
+            <span style="flex:1;overflow:hidden;text-overflow:ellipsis">${escNav(name)}</span>
+            ${p.my_role === 'manager'
+                ? `<span style="font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;background:rgba(232,160,69,.2);color:var(--accent);flex-shrink:0">MGR</span>`
+                : ''}
+        </a>`;
+    }).join('');
+}
+
+// Minimal esc for nav (avoids dependency on page-level esc())
+function escNav(str) {
+    if (!str) return '';
+    return String(str)
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+        .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}

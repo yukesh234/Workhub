@@ -30,12 +30,13 @@ require_once __DIR__ . '/../src/Models/AttachmentModel.php';
 require_once __DIR__ . '/../src/Models/MeetingModel.php';
 require_once __DIR__ . '/../src/Models/SettingModel.php';
 require_once __DIR__ . '/../src/Controller/SettingController.php';
+require_once __DIR__ . '/../src/Controller/NotificationController.php';
 
 function getBaseUrl(): string {
     return rtrim(dirname($_SERVER['SCRIPT_NAME']), '/');
 }
 
-// ── Normalise URI
+//  Normalise URI
 $requestUri = strtok($_SERVER['REQUEST_URI'], '?');
 $basePath   = rtrim(dirname($_SERVER['SCRIPT_NAME']), '/');
 
@@ -46,7 +47,7 @@ if (empty($requestUri) || $requestUri[0] !== '/') {
     $requestUri = '/' . $requestUri;
 }
 
-// ── Controllers 
+//  Controllers 
 $adminController         = new AdminController();
 $projectController       = new ProjectController();
 $projectMemberController = new ProjectMemberController();
@@ -206,18 +207,19 @@ switch ($requestUri) {
         }
         break;
 
-    // ── Admin Members API
+    //  Admin Members API
     case '/api/members':
         AuthMiddleware::checkAuth();
         switch ($_SERVER['REQUEST_METHOD']) {
             case 'GET':    $adminController->getOrganizationMember(); break;
             case 'POST':   $adminController->createUser();            break;
+            case 'PUT':    $adminController->editUser();              break;
             case 'DELETE': $adminController->removeMember();          break;
             default: http_response_code(405); echo json_encode(['success'=>false,'message'=>'Method not allowed']);
         }
         break;
 
-    // ── Admin Task API
+    //  Admin Task API
     case '/api/tasks':
         AuthMiddleware::checkAuth();
         switch ($_SERVER['REQUEST_METHOD']) {
@@ -239,7 +241,7 @@ switch ($requestUri) {
         }
         break;
 
-    // ── Meetings API
+    //  Meetings API
     case '/analytics':
         AuthMiddleware::checkAuth();
         require_once __DIR__ . '/../views/Analytics.php';
@@ -397,7 +399,26 @@ switch ($requestUri) {
             echo json_encode(['success'=>false,'message'=>'Method not allowed']);
         }
         break;
+    
+     case '/api/user/analytics':
+        UserAuthMiddleware::checkAuth();
+        if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+            $userController->getAnalytics();
+        } else {
+            http_response_code(405);
+            echo json_encode(['success' => false, 'message' => 'Method not allowed']);
+        }
+        break;
 
+    case '/user/analytics':
+        UserAuthMiddleware::checkAuth();
+        // Only managers
+        if (($_SESSION['role'] ?? 'member') !== 'manager') {
+            header('Location: ' . $basePath . '/user/dashboard');
+            exit();
+        }
+        require_once __DIR__ . '/../views/User/Analytics.php';
+        break;
     //  User-side API: Tasks
     case '/api/user/tasks':
         UserAuthMiddleware::checkAuth();
@@ -450,6 +471,59 @@ switch ($requestUri) {
             echo json_encode(['success'=>false,'message'=>'Method not allowed']);
         }
         break;
+    case '/user/notifications':
+    UserAuthMiddleware::checkAuth();
+    UserAuthMiddleware::requirePasswordChanged();
+    require_once __DIR__ . '/../views/User/Notifications.php';
+    break;
+
+case '/api/user/notifications':
+    UserAuthMiddleware::checkAuth();
+    UserAuthMiddleware::requirePasswordChanged();
+    if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+        $notificationController = new NotificationController();
+        $notificationController->getNotifications();
+    } else {
+        http_response_code(405);
+        echo json_encode(['success'=>false,'message'=>'Method not allowed']);
+    }
+    break;
+
+case '/api/user/notifications/unread-count':
+    UserAuthMiddleware::checkAuth();
+    UserAuthMiddleware::requirePasswordChanged();
+    if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+        $notificationController = new NotificationController();
+        $notificationController->unreadCount();
+    } else {
+        http_response_code(405);
+        echo json_encode(['success'=>false,'message'=>'Method not allowed']);
+    }
+    break;
+
+case '/api/user/notifications/read':
+    UserAuthMiddleware::checkAuth();
+    UserAuthMiddleware::requirePasswordChanged();
+    if ($_SERVER['REQUEST_METHOD'] === 'PATCH') {
+        $notificationController = new NotificationController();
+        $notificationController->markRead();
+    } else {
+        http_response_code(405);
+        echo json_encode(['success'=>false,'message'=>'Method not allowed']);
+    }
+    break;
+
+case '/api/user/notifications/read-all':
+    UserAuthMiddleware::checkAuth();
+    UserAuthMiddleware::requirePasswordChanged();
+    if ($_SERVER['REQUEST_METHOD'] === 'PATCH') {
+        $notificationController = new NotificationController();
+        $notificationController->markAllRead();
+    } else {
+        http_response_code(405);
+        echo json_encode(['success'=>false,'message'=>'Method not allowed']);
+    }
+    break;
 
     //  404
     default:

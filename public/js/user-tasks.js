@@ -18,8 +18,8 @@ document.addEventListener('DOMContentLoaded', () => {
         new Date().toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric' });
 
     document.getElementById('tf-due')?.setAttribute('min', new Date().toISOString().split('T')[0]);
-
     loadData();
+    NotifPoll.start(BASE, () => loadNotifications());
 
     // Filters & search — all trigger re-render
     ['search-input','filter-status','filter-priority','filter-project','filter-sort','toggle-assigned'].forEach(id => {
@@ -45,7 +45,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-// ── Load ──────────────────────────────────────────────────────────────
+// ── Load 
 async function loadData() {
     try {
         const [projRes, taskRes] = await Promise.all([
@@ -56,6 +56,12 @@ async function loadData() {
 
         allProjects = projJson.success ? (projJson.data || []) : [];
         allTasks    = taskJson.success ? (taskJson.data || []) : [];
+
+        // ── Auto-populate sidebar nav once data is ready 
+        if (!_navProjectsLoaded) {
+            _navProjectsLoaded = true;
+            renderProjectsNav(allProjects);
+        }
 
         // Populate project filter dropdown
         const sel = document.getElementById('filter-project');
@@ -86,7 +92,7 @@ async function loadData() {
     }
 }
 
-// ── Filter + sort ─────────────────────────────────────────────────────
+// Filter + sort 
 function getFiltered() {
     const search  = document.getElementById('search-input').value.toLowerCase().trim();
     const status  = document.getElementById('filter-status').value;
@@ -383,7 +389,7 @@ document.getElementById('task-form')?.addEventListener('submit', async function(
 });
 
 async function deleteTask(taskId, projectId) {
-    if (!confirm('Delete this task? This cannot be undone.')) return;
+    if(!await ConfirmDialog.show('Are you sure you want to delete this task? This action cannot be undone.', { type:'danger' })) return;
     try {
         const res  = await fetch(BASE + '/api/user/tasks', {
             method: 'DELETE',
@@ -399,7 +405,7 @@ async function deleteTask(taskId, projectId) {
     } catch (err) { showToast(err.message, 'error'); }
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────
+// ── Helpers
 function esc(str) {
     if (!str) return '';
     return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
@@ -418,8 +424,96 @@ function showToast(message, type = 'success') {
 function openModal(id)  { document.getElementById(id)?.classList.add('open'); }
 function closeModal(id) { document.getElementById(id)?.classList.remove('open'); }
 function closeModalOutside(e, id) { if (e.target.id === id) closeModal(id); }
-function handleLogout() {
-    if (!confirm('Are you sure you want to logout?')) return;
+async function handleLogout() {
+    if(!await ConfirmDialog.show('Are you sure you want to log out?', { type:'danger' })) return;
     fetch(BASE + '/user/logout', { method:'POST', credentials:'same-origin' })
         .finally(() => { location.href = BASE + '/user/login'; });
+}
+
+// ── Sidebar projects nav ───────────────────────────────────────────────
+
+let _navProjectsOpen  = false;
+let _navProjectsLoaded = false;
+
+function toggleProjectsNav() {
+    _navProjectsOpen = !_navProjectsOpen;
+
+    const list     = document.getElementById('projects-nav-list');
+    const chevron  = document.getElementById('projects-chevron');
+    const toggle   = document.getElementById('nav-projects-toggle');
+
+    if (_navProjectsOpen) {
+        // Expand — measure content height after render
+        list.style.maxHeight = '400px';   // generous max; CSS transition handles feel
+        chevron.style.transform = 'rotate(180deg)';
+        toggle.classList.add('active');
+
+        // Load once
+        if (!_navProjectsLoaded) loadProjectsNav();
+    } else {
+        list.style.maxHeight = '0';
+        chevron.style.transform = 'rotate(0deg)';
+        toggle.classList.remove('active');
+    }
+}
+
+async function loadProjectsNav() {
+    try {
+        // Reuse existing data if already loaded on the page (dashboard / tasks)
+        // Otherwise fetch fresh
+        let projects = (typeof allProjects !== 'undefined' && allProjects.length > 0)
+            ? allProjects
+            : await fetch(BASE + '/api/user/projects', { credentials: 'same-origin' })
+                  .then(r => r.json())
+                  .then(j => j.success ? (j.data || []) : []);
+
+        _navProjectsLoaded = true;
+        renderProjectsNav(projects);
+    } catch {
+        document.getElementById('projects-nav-items').innerHTML =
+            `<div class="nav-projects-empty">Failed to load</div>`;
+        document.getElementById('projects-nav-skeleton').style.display = 'none';
+    }
+}
+
+function renderProjectsNav(projects) {
+    const skeleton = document.getElementById('projects-nav-skeleton');
+    const items    = document.getElementById('projects-nav-items');
+
+    skeleton.style.display = 'none';
+    console.log('Rendering projects nav with', projects, 'projects');
+
+    if (!projects.length) {
+        items.innerHTML = `<div class="nav-projects-empty">No projects yet</div>`;
+        return;
+    }
+
+    // Detect currently active project (for ProjectDetail pages)
+    const currentProjectId = (typeof PROJECT_ID !== 'undefined') ? PROJECT_ID : null;
+
+    items.innerHTML = projects.map(p => {
+        const isActive = currentProjectId && p.project_id === currentProjectId;
+        // Truncate long names to keep sidebar clean
+        const name = (p.name || 'Untitled').length > 22
+            ? (p.name).slice(0, 21) + '…'
+            : p.name;
+
+        return `
+        <a href="${BASE}/user/project?id=${p.project_id}"
+           class="nav-project-item ${isActive ? 'active' : ''}">
+            <span class="nav-project-dot ${escNav(p.status)}"></span>
+            <span style="flex:1;overflow:hidden;text-overflow:ellipsis">${escNav(name)}</span>
+            ${p.my_role === 'manager'
+                ? `<span style="font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;background:rgba(232,160,69,.2);color:var(--accent);flex-shrink:0">MGR</span>`
+                : ''}
+        </a>`;
+    }).join('');
+}
+
+// Minimal esc for nav (avoids dependency on page-level esc())
+function escNav(str) {
+    if (!str) return '';
+    return String(str)
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+        .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }

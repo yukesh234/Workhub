@@ -71,7 +71,7 @@ class ProjectMemberController {
         $result = $this->projectMember->removeMember($project_id, $user_id);
         $org_id = $this->getOrgIdFromProject($project_id);
 
-        // ── Log ──────────────────────────────────────────────────────
+        // ── Log 
         ActivityLogger::log('removed_project_member', 'member', $org_id, $user_id, "project #{$project_id}");
 
         Response(200, true, $result['message']);

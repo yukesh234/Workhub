@@ -341,27 +341,34 @@ function closeConfirm() {
 }
 
 async function executeConfirm() {
+    console.log(confirmAction);
     if (!confirmAction) return;
     const cfg = confirmConfigs[confirmAction];
+    console.log(cfg);
     const val = document.getElementById('confirm-input').value;
+    console.log('Validating confirm input:', val);
 
     if (!cfg.validate(val)) {
         showToast(cfg.invalidMsg || 'Validation failed', 'error');
         return;
     }
+    console.log("Validation passed");
+    console.log(cfg.validate(val));
+   
 
-    closeConfirm();
-
+    console.log('Executing confirm action:', confirmAction);
     if (confirmAction === 'deleteOrg') {
         await deleteOrganization();
     } else if (confirmAction === 'deleteMembers') {
         await deleteAllMembers();
     }
+    closeConfirm();
 }
 
 async function deleteOrganization() {
     try {
-        const res  = await fetch(BASE + '/api/organization', {
+        console.log('Deleting organization…');
+        const res  = await fetch(BASE + '/api/organization/delete', {
             method: 'DELETE',
             credentials: 'same-origin',
         });

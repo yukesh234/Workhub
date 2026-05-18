@@ -386,9 +386,86 @@ $adminHandle  = explode('@', $adminEmail)[0];
     </div>
 </div>
 
+<!-- ══ Edit Member Modal ══ -->
+<div class="modal-backdrop" id="modal-edit-member"
+     onclick="closeModalOutside(event, 'modal-edit-member')">
+    <div class="modal">
+        <h2>Edit Member</h2>
+        <p style="font-size:14px;color:var(--text-secondary);margin-bottom:24px">
+            Update details for this team member.
+        </p>
 
+        <div class="form-error" id="edit-member-error"></div>
+
+        <form id="edit-member-form" enctype="multipart/form-data">
+            <input type="hidden" id="edit-user-id" name="user_id">
+
+            <!-- Photo upload -->
+            <div class="photo-upload-row">
+                <div class="photo-preview-circle" id="edit-photo-circle"
+                     onclick="document.getElementById('edit-member-photo-input').click()">
+                    <img id="edit-photo-preview-img" alt="" style="display:none">
+                    <svg id="edit-photo-preview-icon" viewBox="0 0 24 24" fill="none"
+                         stroke="currentColor" stroke-width="1.5"
+                         stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                        <circle cx="12" cy="13" r="4"/>
+                    </svg>
+                </div>
+                <div class="photo-upload-info">
+                    <p>Profile photo</p>
+                    <span>Leave blank to keep existing · JPG, PNG, WEBP</span>
+                </div>
+                <input type="file" id="edit-member-photo-input" name="image"
+                       accept="image/jpeg,image/png,image/webp" style="display:none"
+                       onchange="previewEditMemberPhoto(this)">
+            </div>
+
+            <!-- Name + Email -->
+            <div class="form-group">
+                <label for="edit-m-name">Full Name <span style="color:var(--brand)">*</span></label>
+                <input type="text" id="edit-m-name" name="name"
+                       placeholder="e.g. Priya Nair" required maxlength="255">
+            </div>
+            <div class="form-group">
+                <label for="edit-m-email">Email Address <span style="color:var(--brand)">*</span></label>
+                <input type="email" id="edit-m-email" name="email"
+                       placeholder="priya@yourcompany.com" required>
+            </div>
+
+            <!-- Role -->
+            <div class="form-group">
+                <label>Role <span style="color:var(--brand)">*</span></label>
+                <div class="role-select-grid">
+                    <label class="role-option" id="edit-role-member-opt">
+                        <input type="radio" name="role" value="member"
+                               onchange="selectEditRole(this)">
+                        <div class="role-option-label">Member</div>
+                        <div class="role-option-desc">Regular team member</div>
+                    </label>
+                    <label class="role-option" id="edit-role-manager-opt">
+                        <input type="radio" name="role" value="manager"
+                               onchange="selectEditRole(this)">
+                        <div class="role-option-label">Manager</div>
+                        <div class="role-option-desc">Can manage projects</div>
+                    </label>
+                </div>
+            </div>
+
+            <div class="modal-actions">
+                <button type="button" class="btn-ghost"
+                        onclick="closeModal('modal-edit-member')">Cancel</button>
+                <button type="submit" class="btn-primary" id="edit-member-btn">
+                    <div class="btn-spin"></div>
+                    <span class="btn-text">Save Changes</span>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
 <script> window.WH_BASE = '<?= $basePath ?>'; </script>
 <script src="<?= $basePath ?>/js/app.js"></script>
+<script src="<?= $basePath ?>/js/confirm-dialog.js"></script>
 <script src="<?= $basePath ?>/js/member.js"></script>
 </body>
 </html>

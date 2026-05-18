@@ -31,7 +31,7 @@ class AuthMiddleware {
         return $_SESSION['admin_id'];
     }
     
-    public static function organization(OrganizationModel $organization, $admin_id):int{
+    public static function organization(OrganizationModel $organization, $admin_id): ?int{
         return $organization->getOrganizationId($admin_id);
     }
 

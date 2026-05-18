@@ -195,6 +195,7 @@ function renderStats() {
 
 // ── Workload ──────────────────────────────────────────────────────────
 function renderWorkload() {
+    console.log('allMembers', allMembers);
     const wrap = document.getElementById('members-workload');
     if (allMembers.length === 0) {
         wrap.innerHTML = `<div style="padding:20px;text-align:center;font-size:13px;color:var(--text-muted)">No members yet.</div>`;
@@ -210,10 +211,10 @@ function renderWorkload() {
     });
     const maxTasks = Math.max(...allMembers.map(m => counts[m.user_id]?.total || 0), 1);
     wrap.innerHTML = allMembers.map(m => {
-        const c      = counts[m.user_id] || { total: 0, done: 0 };
+        const c        = counts[m.user_id] || { total: 0, done: 0 };
         const initials = (m.name || '?').split(' ').map(w => w[0]).slice(0,2).join('').toUpperCase();
-        const barW   = Math.round((c.total / maxTasks) * 100);
-        const roleCss = m.role === 'manager'
+        const barW     = Math.round((c.total / maxTasks) * 100);
+        const roleCss  = m.role === 'manager'
             ? 'background:var(--brand-pale2);color:var(--brand)'
             : 'background:var(--surface-2);color:var(--text-muted);border:1px solid var(--border)';
         const avatarHtml = m.userProfile
@@ -230,6 +231,21 @@ function renderWorkload() {
                 <div class="mw-bar-wrap" style="margin-top:5px"><div class="mw-bar-fill" style="width:${barW}%"></div></div>
             </div>
             <div class="mw-tasks"><div class="mw-count">${c.done}/${c.total}</div><div class="mw-label">done</div></div>
+            <button
+                class="btn-task-action danger"
+                title="Remove member"
+                onclick="removeMemberFromProject(${m.user_id}, '${esc(m.name || m.email).replace(/'/g, "\\'")}')"
+                style="flex-shrink:0;opacity:0.4;transition:opacity var(--transition)"
+                onmouseenter="this.style.opacity='1'"
+                onmouseleave="this.style.opacity='0.4'">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+                    <circle cx="9" cy="7" r="4"/>
+                    <line x1="17" y1="8" x2="23" y2="14"/>
+                    <line x1="23" y1="8" x2="17" y2="14"/>
+                </svg>
+            </button>
         </div>`;
     }).join('');
 }
@@ -428,7 +444,7 @@ async function postComment() {
 }
 
 async function deleteComment(commentId) {
-    if (!confirm('Delete this comment?')) return;
+    if(!await ConfirmDialog.show('Are you sure you want to delete this comment?')) return;
     try {
         const res  = await fetch(BASE + '/api/tasks/comments', {
             method: 'DELETE',
@@ -449,7 +465,7 @@ document.getElementById('tdp-comment-input')?.addEventListener('keydown', e => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); postComment(); }
 });
 
-// ── Attachments ───────────────────────────────────────────────────────
+// ── Attachments 
 async function loadAttachments(taskId) {
     const wrap = document.getElementById('tdp-attachments-list');
     wrap.innerHTML = `<div style="padding:8px 0;color:var(--text-muted);font-size:13px">Loading…</div>`;
@@ -531,7 +547,7 @@ async function uploadAttachment(input) {
 }
 
 async function deleteAttachment(attachmentId) {
-    if (!confirm('Remove this attachment?')) return;
+    if(!await ConfirmDialog.show('Are you sure you want to remove this attachment?')) return;
     try {
         const res  = await fetch(BASE + '/api/tasks/attachments', {
             method: 'DELETE',
@@ -760,7 +776,7 @@ function renderProjectFiles(files) {
         </div>`).join('');
 }
 
-// ── Image lightbox ────────────────────────────────────────────────────
+// ── Image lightbox 
 function openFileLightbox(url, name) {
     const existing = document.getElementById('file-lightbox');
     if (existing) existing.remove();
@@ -788,4 +804,30 @@ function openFileLightbox(url, name) {
     document.addEventListener('keydown', function handler(e) {
         if (e.key === 'Escape') { lb.remove(); document.removeEventListener('keydown', handler); }
     });
+}
+
+// remove members from project
+async function removeMemberFromProject(userId, name) {
+    if (!confirm(`Remove "${name}" from this project? Their tasks will be unassigned.`)) return;
+    try {
+        const res  = await fetch(BASE + '/api/projects/members', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ project_id: PROJECT_ID, user_id: userId }),
+        });
+        const json = await res.json();
+        if (!json.success) throw new Error(json.message);
+
+        // Remove from local state and re-render
+        allMembers = allMembers.filter(m => m.user_id !== userId);
+        renderWorkload();
+        populateAssigneeDropdown();
+
+        // Reload tasks since assigned_to may have been cleared
+        await loadTasks();
+        showToast(`${name} removed from project.`, 'error');
+    } catch (err) {
+        showToast(err.message, 'error');
+    }
 }

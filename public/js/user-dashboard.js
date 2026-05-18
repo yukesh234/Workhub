@@ -16,7 +16,7 @@ document.addEventListener('DOMContentLoaded', () => {
         new Date().toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric' });
 
     document.getElementById('tf-due')?.setAttribute('min', new Date().toISOString().split('T')[0]);
-
+    NotifPoll.start(BASE, () => loadNotifications());
     loadMyProjects();
     loadMyTasks();
 
@@ -38,17 +38,23 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-// ── Load my projects ──────────────────────────────────────────────────
+// ── Load my projects 
 async function loadMyProjects() {
     try {
         const res  = await fetch(BASE + '/api/user/projects', { credentials: 'same-origin' });
         const json = await res.json();
-        console.log('loadMyProjects response', json);
         if (!json.success) throw new Error(json.message);
         allProjects = json.data || [];
         renderProjects();
         populateProjectDropdowns();
         document.getElementById('stat-projects').textContent = allProjects.length;
+
+        // ── Auto-populate sidebar nav once data is ready ──────────
+        if (!_navProjectsLoaded) {
+            _navProjectsLoaded = true;
+            renderProjectsNav(allProjects);
+        }
+
     } catch (err) {
         document.getElementById('projects-list').innerHTML =
             `<div style="padding:20px;font-size:13px;color:var(--text-muted);text-align:center">${esc(err.message)}</div>`;
@@ -677,3 +683,90 @@ document.addEventListener('keydown', e => {
         currentTask = null;
     }
 });
+
+// ── Sidebar projects nav ───────────────────────────────────────────────
+
+let _navProjectsOpen  = false;
+let _navProjectsLoaded = false;
+
+function toggleProjectsNav() {
+    _navProjectsOpen = !_navProjectsOpen;
+
+    const list     = document.getElementById('projects-nav-list');
+    const chevron  = document.getElementById('projects-chevron');
+    const toggle   = document.getElementById('nav-projects-toggle');
+
+    if (_navProjectsOpen) {
+        // Expand — measure content height after render
+        list.style.maxHeight = '400px';   // generous max; CSS transition handles feel
+        chevron.style.transform = 'rotate(180deg)';
+        toggle.classList.add('active');
+
+        // Load once
+        if (!_navProjectsLoaded) loadProjectsNav();
+    } else {
+        list.style.maxHeight = '0';
+        chevron.style.transform = 'rotate(0deg)';
+        toggle.classList.remove('active');
+    }
+}
+
+async function loadProjectsNav() {
+    try {
+        // Reuse existing data if already loaded on the page (dashboard / tasks)
+        // Otherwise fetch fresh
+        let projects = (typeof allProjects !== 'undefined' && allProjects.length > 0)
+            ? allProjects
+            : await fetch(BASE + '/api/user/projects', { credentials: 'same-origin' })
+                  .then(r => r.json())
+                  .then(j => j.success ? (j.data || []) : []);
+
+        _navProjectsLoaded = true;
+        renderProjectsNav(projects);
+    } catch {
+        document.getElementById('projects-nav-items').innerHTML =
+            `<div class="nav-projects-empty">Failed to load</div>`;
+        document.getElementById('projects-nav-skeleton').style.display = 'none';
+    }
+}
+
+function renderProjectsNav(projects) {
+    const skeleton = document.getElementById('projects-nav-skeleton');
+    const items    = document.getElementById('projects-nav-items');
+
+    skeleton.style.display = 'none';
+
+    if (!projects.length) {
+        items.innerHTML = `<div class="nav-projects-empty">No projects yet</div>`;
+        return;
+    }
+
+    // Detect currently active project (for ProjectDetail pages)
+    const currentProjectId = (typeof PROJECT_ID !== 'undefined') ? PROJECT_ID : null;
+
+    items.innerHTML = projects.map(p => {
+        const isActive = currentProjectId && p.project_id === currentProjectId;
+        // Truncate long names to keep sidebar clean
+        const name = (p.name || 'Untitled').length > 22
+            ? (p.name).slice(0, 21) + '…'
+            : p.name;
+
+        return `
+        <a href="${BASE}/user/project?id=${p.project_id}"
+           class="nav-project-item ${isActive ? 'active' : ''}">
+            <span class="nav-project-dot ${escNav(p.status)}"></span>
+            <span style="flex:1;overflow:hidden;text-overflow:ellipsis">${escNav(name)}</span>
+            ${p.my_role === 'manager'
+                ? `<span style="font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;background:rgba(232,160,69,.2);color:var(--accent);flex-shrink:0">MGR</span>`
+                : ''}
+        </a>`;
+    }).join('');
+}
+
+// Minimal esc for nav (avoids dependency on page-level esc())
+function escNav(str) {
+    if (!str) return '';
+    return String(str)
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+        .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}

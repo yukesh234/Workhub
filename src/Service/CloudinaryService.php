@@ -12,9 +12,9 @@ class CloudinaryService {
     public function __construct() {
         $this->cloudinary = new Cloudinary([
             'cloud' => [
-                'cloud_name' => \Config::get('CLOUDINARY_CLOUD_NAME'),
-                'api_key'    => \Config::get('CLOUDINARY_API_KEY'),
-                'api_secret' => \Config::get('CLOUDINARY_API_SECRET'),
+                'cloud_name' => Config::get('CLOUDINARY_CLOUD_NAME'),
+                'api_key'    => Config::get('CLOUDINARY_API_KEY'),
+                'api_secret' => Config::get('CLOUDINARY_API_SECRET'),
             ],
             'url' => [
                 'secure' => true
@@ -41,8 +41,8 @@ class CloudinaryService {
                 'public_id'     => $result['public_id'],
                 'resource_type' => $resourceType,   // return it so delete can use it later
             ];
-        } catch (\Exception $e) {
-            throw new \Exception("Upload failed: " . $e->getMessage());
+        } catch (Exception $e) {
+            throw new Exception("Upload failed: " . $e->getMessage());
         }
     }
 
@@ -56,8 +56,8 @@ class CloudinaryService {
                 'resource_type' => $resourceType,
             ]);
             return $result['result'] === 'ok';
-        } catch (\Exception $e) {
-            throw new \Exception("Deletion from the cloud failed: " . $e->getMessage());
+        } catch (Exception $e) {
+            throw new Exception("Deletion from the cloud failed: " . $e->getMessage());
         }
     }
 

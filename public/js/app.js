@@ -112,13 +112,13 @@ function previewLogo(e, previewId = 'upload-preview', iconId = 'upload-icon') {
     reader.readAsDataURL(file);
 }
 
-// ── Logout
-function handleLogout() {
-    if (confirm('Are you sure you want to logout?'))
+//  Logout
+async function handleLogout() {
+        if(await ConfirmDialog.show('Are you sure you want to log out?')) 
         window.location.href = BASE + '/logout';
 }
 
-// ── Date helpers 
+//  Date helpers 
 function formatDate(dateStr) {
     if (!dateStr) return '—';
     return new Date(dateStr).toLocaleDateString('en-US', {

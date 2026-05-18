@@ -90,7 +90,7 @@ class MeetingController {
         $result = $this->meeting->endMeeting($meeting_id, $author_id);
         if (!$result['success']) Response(400, false, $result['message']);
 
-        // ── Log ──────────────────────────────────────────────────────
+        //  Log 
         // Get project_id for org lookup from the meeting record
         $org_id = $this->getOrgIdFromMeeting($meeting_id);
         ActivityLogger::log('meeting_ended', 'meeting', $org_id, $meeting_id, "meeting #{$meeting_id}");
@@ -155,7 +155,7 @@ class MeetingController {
 
     private function getOrgIdFromProject(int $project_id): int {
         try {
-            $db   = \Database::getInstance()->getConnection();
+            $db   = Database::getInstance()->getConnection();
             $stmt = $db->prepare("SELECT organization_id FROM project WHERE project_id=?");
             $stmt->execute([$project_id]);
             return (int) ($stmt->fetchColumn() ?: 0);
@@ -164,7 +164,7 @@ class MeetingController {
 
     private function getOrgIdFromMeeting(int $meeting_id): int {
         try {
-            $db   = \Database::getInstance()->getConnection();
+            $db   = Database::getInstance()->getConnection();
             $stmt = $db->prepare("SELECT p.organization_id FROM meeting m JOIN project p ON p.project_id=m.project_id WHERE m.meeting_id=?");
             $stmt->execute([$meeting_id]);
             return (int) ($stmt->fetchColumn() ?: 0);
